@@ -1,0 +1,2078 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghia Task Tracker | Kế Hoạch Của Nhung</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&display=swap" rel="stylesheet">
+    <!-- Thư viện hiệu ứng pháo hoa -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        ghia: {
+                            bg: 'var(--color-bg)',
+                            card: 'var(--color-card)',
+                            rust: 'var(--color-rust)',
+                            ink: 'var(--color-ink)',
+                            muted: 'var(--color-muted)',
+                            tan: 'var(--color-tan)',
+                            cream: 'var(--color-cream)'
+                        },
+                        surface: 'var(--color-surface)'
+                    },
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['"DM Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --color-bg: #8B1E16;      
+            --color-card: #FFF7F5;    
+            --color-rust: #D32F2F;    
+            --color-ink: #4A100C;     
+            --color-muted: #A5736F;   
+            --color-tan: #F0D4D1;     
+            --color-cream: #F9ECE4;    
+            --color-surface: #FFFFFF;
+        }
+
+        html.dark {
+            --color-bg: #1A0503;       
+            --color-card: #2C0A07;     
+            --color-rust: #EF5350;     
+            --color-ink: #FFF7F5;      
+            --color-muted: #D09C98;    
+            --color-tan: #5A1A14;      
+            --color-cream: #3A0C08;    
+            --color-surface: #250805;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-ink);
+            transition: background-color 0.4s ease, color 0.4s ease;
+        }
+
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: 0.6;
+            transition: 0.2s;
+            filter: invert(var(--icon-invert, 0));
+        }
+        html.dark input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(1);
+        }
+        input[type="date"]::-webkit-calendar-picker-indicator:hover {
+            opacity: 1;
+        }
+
+        .ghia-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 1px solid var(--color-rust);
+            border-radius: 50%;
+            background-color: transparent;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .ghia-checkbox:checked {
+            background-color: var(--color-rust);
+            border-color: var(--color-rust);
+        }
+
+        .ghia-checkbox:checked::after {
+            content: '\f00c';
+            font-family: 'Font Awesome 5 Free';
+            font-weight: 900;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -46%);
+            font-size: 10px;
+            color: white;
+        }
+
+        .task-checkbox:checked + div {
+            text-decoration: line-through;
+            color: var(--color-muted);
+            opacity: 0.7;
+        }
+
+        .calendar-day.active-day {
+            background-color: var(--color-rust);
+            color: white;
+            font-weight: bold;
+        }
+
+        .drag-over {
+            background-color: rgba(240, 212, 209, 0.2) !important;
+            border: 2px dashed var(--color-rust) !important;
+        }
+
+        .extreme-blur {
+            filter: blur(15px);
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+    <link rel="icon" type="image/svg+xml" href="./calendar.svg">
+</head>
+<body class="min-h-screen flex flex-col py-6 px-4 md:py-10 md:px-8 relative pb-28" id="mainBody">
+
+    <!-- Thanh Nhập Nhanh (Inbox / Brain Dump) Nổi -->
+    <div class="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[55] w-full max-w-lg px-4 pointer-events-none">
+        <div class="bg-surface/95 backdrop-blur-md rounded-full shadow-2xl flex items-center p-2 border border-ghia-tan pointer-events-auto transition-transform focus-within:-translate-y-2">
+            <i class="fas fa-brain text-ghia-muted ml-3 text-lg"></i>
+            <input type="text" id="quickInboxInput" placeholder="Nảy ra ý tưởng? Gõ vào đây..." class="flex-1 bg-transparent px-3 py-2 outline-none text-sm font-sans text-ghia-ink" onkeypress="if(event.key === 'Enter') addInboxTask()">
+            <button onclick="addInboxTask()" class="bg-ghia-ink hover:bg-ghia-rust text-white w-10 h-10 rounded-full transition-colors flex items-center justify-center shadow-md shrink-0">
+                <i class="fas fa-arrow-up"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Nút Bảo Vệ Mắt (20-20-20) -->
+    <button onclick="toggleEyeCare()" id="eyeCareBtn" class="absolute top-6 right-[7rem] md:top-8 md:right-[8.5rem] w-10 h-10 rounded-full bg-ghia-cream text-ghia-muted flex items-center justify-center shadow-md hover:scale-110 transition-transform z-20" title="Bật bảo vệ mắt 20-20-20">
+        <i id="eyeCareIcon" class="fas fa-eye-slash text-sm"></i>
+    </button>
+
+    <!-- Nút Bật Thông Báo -->
+    <button onclick="requestNotificationPermission()" id="notifyBtn" class="absolute top-6 right-[4.5rem] md:top-8 md:right-[5.5rem] w-10 h-10 rounded-full bg-ghia-cream text-ghia-muted flex items-center justify-center shadow-md hover:scale-110 transition-transform z-20" title="Bật thông báo">
+        <i id="notifyIcon" class="fas fa-bell-slash text-sm"></i>
+    </button>
+
+    <!-- Nút Toggle Dark Mode -->
+    <button onclick="toggleTheme()" class="absolute top-6 right-6 md:top-8 md:right-10 w-10 h-10 rounded-full bg-ghia-cream text-ghia-rust flex items-center justify-center shadow-md hover:scale-110 transition-transform z-20" title="Chuyển chế độ Sáng/Tối">
+        <i id="themeIcon" class="fas fa-moon text-lg"></i>
+    </button>
+
+    <div class="bg-ghia-card rounded-[2rem] shadow-2xl w-full max-w-7xl mx-auto overflow-hidden border border-ghia-tan/50 flex flex-col min-h-[85vh] relative z-10 mt-4 md:mt-0 transition-all duration-500" id="appWrapper">
+        
+        <!-- Header -->
+        <div class="pt-10 pb-6 px-6 text-center relative z-10">
+            <div class="uppercase tracking-[0.2em] text-xs font-bold text-ghia-rust mb-4">Mục Tiêu & Hành Động</div>
+            <h1 class="text-4xl md:text-5xl font-serif font-semibold text-ghia-ink mb-3 italic">
+                Kế Hoạch Của Nhung
+            </h1>
+            <p class="text-ghia-muted font-sans text-sm max-w-lg mx-auto">Tập trung vào 20% công việc quan trọng nhất để tạo ra 80% kết quả.</p>
+        </div>
+
+        <!-- Dashboard: Form Input & Mini Calendar -->
+        <div class="px-6 md:px-10 w-full mx-auto mb-6 z-10 flex flex-col lg:flex-row gap-6 items-stretch">
+            
+            <!-- Left: Input Form -->
+            <div class="flex-1 bg-surface border border-ghia-tan rounded-3xl p-6 md:p-8 shadow-sm flex flex-col justify-center transition-all hover:shadow-md">
+                <h3 class="font-serif font-semibold text-2xl text-ghia-ink italic mb-6">Thêm công việc mới</h3>
+                
+                <div class="space-y-4">
+                    <div class="relative">
+                        <i class="fas fa-pen-nib absolute left-4 top-3.5 text-ghia-muted"></i>
+                        <input type="text" id="taskInput" placeholder="Bạn muốn hoàn thành việc gì?" class="w-full bg-ghia-card/50 border border-ghia-tan rounded-full py-3 pl-12 pr-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans">
+                    </div>
+                    
+                    <div class="flex flex-col md:flex-row gap-3">
+                        <div class="relative w-full md:w-[130px] shrink-0">
+                            <select id="taskType" class="w-full appearance-none bg-ghia-card/50 border border-ghia-tan rounded-full py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-serif italic text-sm cursor-pointer">
+                                <option value="month">Mục tiêu Tháng</option>
+                                <option value="week1">Việc Tuần 1</option>
+                                <option value="week2">Việc Tuần 2</option>
+                                <option value="week3">Việc Tuần 3</option>
+                                <option value="week4">Việc Tuần 4</option>
+                                <option value="week5">Việc Tuần 5</option>
+                                <option value="day" selected>Làm Hôm Nay</option>
+                            </select>
+                            <i class="fas fa-angle-down absolute right-3 top-4 text-ghia-muted text-xs pointer-events-none"></i>
+                        </div>
+
+                        <div class="relative w-full md:flex-1">
+                            <select id="taskCategory" class="w-full appearance-none bg-ghia-card/50 border border-ghia-tan rounded-full py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm cursor-pointer">
+                                <option value="routine">☕ Sinh hoạt thường nhật</option>
+                                <option value="urgent" class="text-ghia-rust font-bold">🔥 Quan trọng & Khẩn cấp</option>
+                                <option value="study" selected>📚 Học tập & Nghiên cứu</option>
+                                <option value="extracurricular">💼 Ngoại khóa & Việc làm</option>
+                                <option value="personal">🧘‍♀️ Cá nhân & Sức khỏe</option>
+                                <option value="other">📌 Khác</option>
+                            </select>
+                            <i class="fas fa-angle-down absolute right-3 top-4 text-ghia-muted text-xs pointer-events-none"></i>
+                        </div>
+
+                        <div class="relative w-full md:w-[130px] shrink-0">
+                            <select id="taskEnergy" class="w-full appearance-none bg-ghia-card/50 border border-ghia-tan rounded-full py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm cursor-pointer" title="Năng lượng cần thiết">
+                                <option value="none">Năng lượng</option>
+                                <option value="high">⚡ Cao</option>
+                                <option value="medium">🔋 Vừa</option>
+                                <option value="low">🪫 Thấp</option>
+                            </select>
+                            <i class="fas fa-angle-down absolute right-3 top-4 text-ghia-muted text-xs pointer-events-none"></i>
+                        </div>
+                        
+                        <div class="relative w-full md:w-[130px] shrink-0" title="Hạn chót">
+                            <input type="date" id="taskDate" class="w-full bg-ghia-card/50 border border-ghia-tan rounded-full py-3 px-3 text-ghia-muted focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm cursor-pointer">
+                        </div>
+                        
+                        <button onclick="addTask()" class="w-full md:w-12 md:h-12 shrink-0 bg-ghia-rust hover:bg-ghia-ink text-white rounded-full py-3 md:py-0 transition-colors shadow-sm flex items-center justify-center" title="Thêm công việc">
+                            <i class="fas fa-plus text-lg"></i>
+                            <span class="md:hidden ml-2 font-bold uppercase tracking-widest text-xs">Thêm</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Mini Calendar -->
+            <div class="w-full lg:w-[340px] bg-surface border border-ghia-tan rounded-3xl p-6 shadow-sm shrink-0 flex flex-col justify-center">
+                <div class="flex justify-between items-center mb-6">
+                    <button id="prevMonthBtn" class="text-ghia-muted hover:text-ghia-rust w-8 h-8 rounded-full bg-ghia-card flex items-center justify-center transition-colors"><i class="fas fa-chevron-left text-xs"></i></button>
+                    <h3 id="calendarMonth" class="font-serif font-bold text-ghia-ink text-lg uppercase tracking-widest">Tháng...</h3>
+                    <button id="nextMonthBtn" class="text-ghia-muted hover:text-ghia-rust w-8 h-8 rounded-full bg-ghia-card flex items-center justify-center transition-colors"><i class="fas fa-chevron-right text-xs"></i></button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase tracking-widest text-ghia-muted mb-3">
+                    <div>CN</div><div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div>
+                </div>
+                <div id="calendarDays" class="grid grid-cols-7 gap-y-2 gap-x-1 text-center text-sm font-sans">
+                    <!-- Days injected via JS -->
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Main View Tabs -->
+        <div class="px-6 md:px-10 mb-2 z-10 flex flex-wrap justify-center md:justify-start gap-3">
+            <button id="tabBoard" onclick="switchMainView('board')" class="px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-ghia-rust text-white shadow-md">
+                <i class="fas fa-columns mr-2"></i> Bảng Kế Hoạch
+            </button>
+            <button id="tabDeadline" onclick="switchMainView('deadline')" class="px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-surface border border-ghia-tan text-ghia-ink hover:bg-ghia-cream">
+                <i class="fas fa-list-ul mr-2"></i> DS Công Việc
+            </button>
+            <button id="tabInbox" onclick="switchMainView('inbox')" class="px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-surface border border-ghia-tan text-ghia-ink hover:bg-ghia-cream">
+                <i class="fas fa-inbox mr-2"></i> DS Idea Nghĩ Ra
+            </button>
+            <button id="tabAnalytics" onclick="switchMainView('analytics')" class="px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-surface border border-ghia-tan text-ghia-ink hover:bg-ghia-cream">
+                <i class="fas fa-chart-pie mr-2"></i> Thống Kê
+            </button>
+        </div>
+
+        <!-- Thanh Quick Filter & Search -->
+        <div class="px-6 md:px-10 mb-6 z-10 flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2" id="filterContainerWrapper">
+            <div class="flex items-center gap-2 overflow-x-auto hide-scrollbar flex-1" id="filterContainer">
+                <!-- Các nút filter sẽ được render qua JS -->
+            </div>
+            
+            <div class="flex items-center gap-2 mt-2 md:mt-0 flex-shrink-0 w-full md:w-auto">
+                <button onclick="toggleLowEnergyMode()" id="btnLowEnergy" class="flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all bg-surface text-ghia-muted border border-ghia-tan hover:bg-ghia-cream" title="Ẩn các công việc mệt nhọc">
+                    <i class="fas fa-battery-quarter mr-1"></i> Cạn kiệt
+                </button>
+                <div class="relative w-full md:w-48">
+                    <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-ghia-muted text-xs"></i>
+                    <input type="text" id="searchInput" placeholder="Tìm công việc..." oninput="handleSearch()" class="w-full pl-8 pr-4 py-2 rounded-full text-xs border border-ghia-tan bg-surface text-ghia-ink focus:border-ghia-rust outline-none transition-colors shadow-sm">
+                </div>
+            </div>
+        </div>
+
+        <!-- Bảng 3 Cột (Board) -->
+        <div id="boardView" class="px-6 md:px-10 pb-10 flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 items-start bg-ghia-card">
+            
+            <!-- CỘT 1: THÁNG -->
+            <div class="bg-surface border border-ghia-tan rounded-[2rem] p-6 shadow-sm flex flex-col h-[65vh]" 
+                 ondragover="allowDrop(event)" ondrop="drop(event, 'month')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                
+                <div class="flex justify-between items-end mb-2 border-b border-ghia-tan pb-2">
+                    <h2 class="font-serif font-semibold text-2xl text-ghia-ink italic">Mục Tiêu Tháng</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="clearCompleted('month')" class="text-[10px] font-bold uppercase tracking-widest text-ghia-muted hover:text-ghia-rust transition-colors" title="Dọn dẹp việc đã xong"><i class="fas fa-broom mr-1"></i>Dọn dẹp</button>
+                        <span id="count-month" class="text-xs font-bold uppercase tracking-widest text-ghia-muted bg-ghia-cream px-3 py-1 rounded-full border border-ghia-tan/50">0</span>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest text-ghia-muted mb-1">
+                        <span id="boardMonthDisplay1" class="text-ghia-rust">THÁNG ...</span>
+                        <span id="progress-text-month">0%</span>
+                    </div>
+                    <div class="w-full bg-ghia-tan/30 h-1.5 rounded-full overflow-hidden">
+                        <div id="progress-month" class="bg-ghia-rust h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+
+                <div id="list-month" class="flex-1 overflow-y-auto hide-scrollbar space-y-3 pb-4 relative z-10 pointer-events-none"></div>
+            </div>
+
+            <!-- CỘT 2: TỪNG TUẦN -->
+            <div class="bg-surface border border-ghia-tan rounded-[2rem] p-6 shadow-sm flex flex-col h-[65vh]"
+                 ondragover="allowDrop(event)" ondrop="drop(event, 'week')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                
+                <div class="flex justify-between items-end mb-2 border-b border-ghia-tan pb-2">
+                    <h2 class="font-serif font-semibold text-2xl text-ghia-ink italic">Từng Tuần</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="clearCompleted('week')" class="text-[10px] font-bold uppercase tracking-widest text-ghia-muted hover:text-ghia-rust transition-colors" title="Dọn dẹp việc đã xong"><i class="fas fa-broom mr-1"></i>Dọn dẹp</button>
+                        <span id="count-week" class="text-xs font-bold uppercase tracking-widest text-ghia-muted bg-ghia-cream px-3 py-1 rounded-full border border-ghia-tan/50">0</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-1 mb-2 bg-ghia-cream p-1 rounded-full border border-ghia-tan/50">
+                    <button onclick="switchWeek(1)" id="tab-week1" class="flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors">T1</button>
+                    <button onclick="switchWeek(2)" id="tab-week2" class="flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors">T2</button>
+                    <button onclick="switchWeek(3)" id="tab-week3" class="flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors">T3</button>
+                    <button onclick="switchWeek(4)" id="tab-week4" class="flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors">T4</button>
+                    <button onclick="switchWeek(5)" id="tab-week5" class="flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors">T5</button>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-end text-[10px] font-bold uppercase tracking-widest text-ghia-muted mb-1">
+                        <span id="progress-text-week">0%</span>
+                    </div>
+                    <div class="w-full bg-ghia-tan/30 h-1.5 rounded-full overflow-hidden">
+                        <div id="progress-week" class="bg-ghia-rust h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+
+                <div id="list-week" class="flex-1 overflow-y-auto hide-scrollbar space-y-3 pb-4 relative z-10 pointer-events-none"></div>
+            </div>
+
+            <!-- CỘT 3: NGÀY (HÔM NAY) -->
+            <div class="bg-surface border border-ghia-tan rounded-[2rem] p-6 shadow-sm flex flex-col h-[65vh] relative"
+                 ondragover="allowDrop(event)" ondrop="drop(event, 'day')" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)">
+                <div class="absolute inset-0 bg-gradient-to-b from-ghia-cream/20 to-transparent rounded-[2rem] pointer-events-none"></div>
+                
+                <div class="flex justify-between items-end mb-2 border-b border-ghia-tan pb-2 relative z-10">
+                    <h2 id="dayColumnTitle" class="font-serif font-semibold text-2xl text-ghia-rust italic">Hôm Nay</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="openReflectionModal()" class="text-[10px] font-bold uppercase tracking-widest text-ghia-muted hover:text-ghia-rust transition-colors" title="Viết nhật ký ngày"><i class="fas fa-book-open mr-1"></i>Kết thúc ngày</button>
+                        <button onclick="clearCompleted('day')" class="text-[10px] font-bold uppercase tracking-widest text-ghia-muted hover:text-ghia-rust transition-colors" title="Dọn dẹp việc đã xong"><i class="fas fa-broom mr-1"></i>Dọn dẹp</button>
+                        <span id="count-day" class="text-xs font-bold uppercase tracking-widest text-ghia-rust bg-ghia-rust/10 px-3 py-1 rounded-full border border-ghia-rust/20">0</span>
+                    </div>
+                </div>
+
+                <div class="mb-4 relative z-10">
+                    <div class="flex justify-between text-[10px] font-bold uppercase tracking-widest text-ghia-muted mb-1">
+                        <span id="boardMonthDisplay2" class="text-ghia-rust">NGÀY ...</span>
+                        <span id="progress-text-day">0%</span>
+                    </div>
+                    <div class="w-full bg-ghia-tan/30 h-1.5 rounded-full overflow-hidden">
+                        <div id="progress-day" class="bg-ghia-rust h-full w-0 transition-all duration-500"></div>
+                    </div>
+                </div>
+
+                <div id="list-day" class="flex-1 overflow-y-auto hide-scrollbar space-y-3 pb-4 relative z-10 pointer-events-none"></div>
+            </div>
+
+        </div>
+
+        <!-- Danh Sách Deadline View -->
+        <div id="deadlineView" class="px-6 md:px-10 pb-10 flex-1 hidden flex-col gap-4 bg-ghia-card">
+            <div class="flex justify-between items-end mb-2 border-b border-ghia-tan pb-2">
+                <div>
+                    <h2 class="font-serif font-semibold text-2xl text-ghia-ink italic">Công việc & Hạn Chót</h2>
+                    <p class="text-xs font-bold uppercase tracking-widest text-ghia-muted mt-1">Sắp xếp theo thứ tự thời gian ưu tiên</p>
+                </div>
+                <span id="count-deadline" class="text-xs font-bold uppercase tracking-widest text-ghia-muted bg-ghia-cream border border-ghia-tan/50 px-3 py-1 rounded-full">0</span>
+            </div>
+            <div id="list-deadline" class="space-y-3 flex-1 overflow-y-auto hide-scrollbar pb-4"></div>
+        </div>
+
+        <!-- Danh Sách Inbox View -->
+        <div id="inboxView" class="px-6 md:px-10 pb-10 flex-1 hidden flex-col gap-4 bg-ghia-card">
+            <div class="flex justify-between items-end mb-2 border-b border-ghia-tan pb-2">
+                <div>
+                    <h2 class="font-serif font-semibold text-2xl text-ghia-ink italic">Hộp Ý Tưởng & Đổ Rác</h2>
+                    <p class="text-xs font-bold uppercase tracking-widest text-ghia-muted mt-1">Nơi chứa các công việc chưa được sắp xếp ngày tháng</p>
+                </div>
+                <span id="count-inbox" class="text-xs font-bold uppercase tracking-widest text-ghia-muted bg-ghia-cream border border-ghia-tan/50 px-3 py-1 rounded-full">0</span>
+            </div>
+            <div id="list-inbox" class="space-y-3 flex-1 overflow-y-auto hide-scrollbar pb-4"></div>
+        </div>
+
+        <!-- Analytics Dashboard View -->
+        <div id="analyticsView" class="px-6 md:px-10 pb-10 flex-1 hidden flex-col gap-6 bg-ghia-card">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-ghia-tan pb-3 mb-2 gap-4">
+                <div>
+                    <h2 class="font-serif font-semibold text-2xl text-ghia-ink italic">Bảng Thống Kê</h2>
+                    <p id="analyticsSubtitle" class="text-xs font-bold uppercase tracking-widest text-ghia-muted mt-1">Dữ liệu tổng hợp toàn thời gian</p>
+                </div>
+                
+                <div class="flex bg-surface border border-ghia-tan rounded-full p-1 shadow-sm overflow-x-auto hide-scrollbar max-w-full">
+                    <button onclick="setAnalyticsFilter('all')" id="btn-stat-all" class="whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors bg-ghia-rust text-white shadow-sm">Toàn bộ</button>
+                    <button onclick="setAnalyticsFilter('month')" id="btn-stat-month" class="whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors text-ghia-muted hover:bg-ghia-cream">Tháng đang mở</button>
+                    <button onclick="setAnalyticsFilter('week')" id="btn-stat-week" class="whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors text-ghia-muted hover:bg-ghia-cream">Tuần đang chọn</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-surface border border-ghia-tan rounded-2xl p-5 shadow-sm text-center">
+                    <i class="fas fa-check-circle text-2xl text-green-500 mb-2"></i>
+                    <p class="text-3xl font-serif text-ghia-ink font-bold" id="statCompleted">0</p>
+                    <p class="text-[10px] uppercase tracking-widest text-ghia-muted font-bold mt-1">Đã Hoàn Thành</p>
+                </div>
+                <div class="bg-surface border border-ghia-tan rounded-2xl p-5 shadow-sm text-center">
+                    <i class="fas fa-tasks text-2xl text-blue-500 mb-2"></i>
+                    <p class="text-3xl font-serif text-ghia-ink font-bold" id="statPending">0</p>
+                    <p class="text-[10px] uppercase tracking-widest text-ghia-muted font-bold mt-1">Đang Chờ</p>
+                </div>
+                <div class="bg-surface border border-ghia-tan rounded-2xl p-5 shadow-sm text-center">
+                    <i class="fas fa-fire text-2xl text-orange-500 mb-2"></i>
+                    <p class="text-3xl font-serif text-ghia-ink font-bold" id="statPriority">0</p>
+                    <p class="text-[10px] uppercase tracking-widest text-ghia-muted font-bold mt-1">Việc Ưu Tiên</p>
+                </div>
+                <div class="bg-surface border border-ghia-tan rounded-2xl p-5 shadow-sm text-center relative overflow-hidden group">
+                    <div class="absolute inset-0 bg-ghia-rust/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <i class="fas fa-brain text-2xl text-ghia-rust mb-2 relative z-10"></i>
+                    <p class="text-3xl font-serif text-ghia-rust font-bold relative z-10"><span id="statFocus">0</span><span class="text-sm font-sans">h</span></p>
+                    <p class="text-[10px] uppercase tracking-widest text-ghia-muted font-bold mt-1 relative z-10">Đã Tập Trung <span id="focusSubtitle" class="text-[8px] opacity-70 block mt-0.5">(Toàn thời gian)</span></p>
+                </div>
+            </div>
+
+            <div class="bg-surface border border-ghia-tan rounded-2xl p-6 shadow-sm mt-2">
+                <h3 class="font-serif italic text-lg text-ghia-ink mb-5 border-b border-ghia-tan pb-2">Phân Bổ Theo Danh Mục</h3>
+                <div class="space-y-5" id="categoryStatsContainer">
+                    <!-- Render via JS -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- WIDGET: Đồng hồ Pomodoro 45/15 -->
+    <div class="fixed top-20 right-6 md:top-24 md:right-10 z-[60] bg-surface border border-ghia-tan rounded-3xl shadow-2xl p-5 w-64 flex flex-col items-center transition-all duration-300 group cursor-grab active:cursor-grabbing" id="pomodoroWidget">
+        
+        <div class="absolute top-2 left-1/2 transform -translate-x-1/2 w-10 h-1.5 bg-ghia-tan rounded-full opacity-50 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+
+        <button onclick="toggleZenMode()" class="absolute top-4 left-4 text-ghia-muted hover:text-ghia-rust transition-colors opacity-50 group-hover:opacity-100 cursor-pointer" title="Chế Độ Tập Trung (Toàn màn hình)">
+            <i class="fas fa-expand text-sm pointer-events-none"></i>
+        </button>
+
+        <h4 id="timerModeDisplay" class="text-[10px] font-bold uppercase tracking-widest text-ghia-rust mb-1 bg-ghia-rust/10 px-3 py-1 rounded-full border border-ghia-rust/20 mt-3 pointer-events-none">Làm việc (45P)</h4>
+        <div id="timerDisplay" class="text-5xl font-serif text-ghia-ink font-bold mb-4 tracking-wider mt-2 pointer-events-none">45:00</div>
+        
+        <div class="flex items-center gap-3 w-full justify-center">
+            <button onclick="switchTimerMode('work')" class="w-10 h-10 rounded-full bg-ghia-card text-ghia-rust border border-ghia-tan flex items-center justify-center hover:bg-ghia-rust hover:text-white transition-colors cursor-pointer" title="Chế độ Làm việc 45p"><i class="fas fa-brain text-sm pointer-events-none"></i></button>
+            
+            <button onclick="toggleTimer()" id="timerToggleBtn" class="w-14 h-14 rounded-full bg-ghia-rust text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform text-lg cursor-pointer"><i class="fas fa-play ml-1 pointer-events-none"></i></button>
+            
+            <button onclick="switchTimerMode('break')" class="w-10 h-10 rounded-full bg-green-500/10 text-green-600 border border-green-200 flex items-center justify-center hover:bg-green-600 hover:text-white transition-colors cursor-pointer" title="Chế độ Nghỉ ngơi 15p"><i class="fas fa-coffee text-sm pointer-events-none"></i></button>
+        </div>
+        <button onclick="resetTimer()" class="mt-4 text-[10px] font-bold uppercase tracking-widest text-ghia-muted hover:text-ghia-rust transition-colors cursor-pointer"><i class="fas fa-redo mr-1 pointer-events-none"></i> Đặt lại</button>
+    </div>
+
+    <!-- OVERLAY: 5 MINUTE RULE TIMER -->
+    <div id="fiveMinOverlay" class="fixed inset-0 z-[105] bg-ghia-bg/90 backdrop-blur-md hidden flex-col items-center justify-center p-6 transition-opacity duration-300 opacity-0">
+        <div class="bg-surface p-10 rounded-[2rem] shadow-2xl border border-ghia-tan text-center w-full max-w-md relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-full h-2 bg-ghia-tan/30">
+                <div id="fiveMinProgress" class="h-full bg-yellow-500 w-full transition-all duration-1000 ease-linear"></div>
+            </div>
+            <i class="fas fa-bolt text-5xl text-yellow-500 mb-4 animate-pulse"></i>
+            <h2 class="font-serif italic text-2xl text-ghia-ink mb-1">Quy Tắc 5 Phút</h2>
+            <p id="fiveMinTaskTitle" class="text-sm font-bold text-ghia-rust mb-6 line-clamp-2 px-4">Tên task...</p>
+            <div id="fiveMinTimeDisplay" class="text-[80px] font-serif font-bold text-ghia-ink leading-none mb-8 tracking-wider drop-shadow-md">05:00</div>
+            <div class="flex gap-4 justify-center">
+                <button onclick="closeFiveMinTimer()" class="px-6 py-3 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-white border border-ghia-tan text-ghia-muted hover:bg-ghia-cream shadow-sm">Bỏ cuộc</button>
+                <button onclick="completeFiveMinTask()" class="bg-ghia-rust hover:bg-ghia-ink text-white px-8 py-3 rounded-full font-bold uppercase tracking-widest text-xs transition-colors shadow-lg">Xong Rồi!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERLAY: ZEN MODE -->
+    <div id="zenModeOverlay" class="fixed inset-0 z-[100] bg-ghia-bg hidden flex-col items-center justify-center p-6 transition-opacity duration-500 opacity-0">
+        <button onclick="toggleZenMode()" class="absolute top-8 right-8 text-white/50 hover:text-white transition-colors">
+            <i class="fas fa-compress text-3xl"></i>
+        </button>
+        <div class="text-center w-full max-w-2xl">
+            <h2 class="font-serif italic text-3xl md:text-5xl text-white/80 mb-2">Chế Độ Tập Trung</h2>
+            <p class="text-ghia-tan/70 text-xs font-bold uppercase tracking-widest mb-12">Loại bỏ mọi xao nhãng</p>
+            
+            <div id="zenTimerDisplay" class="text-[100px] md:text-[180px] font-serif font-bold text-white mb-6 leading-none tracking-wider drop-shadow-lg">45:00</div>
+            
+            <h4 id="zenTimerModeDisplay" class="text-[10px] md:text-xs font-bold uppercase tracking-widest text-ghia-bg mb-10 bg-white px-5 py-2.5 rounded-full inline-block shadow-md">Đang Làm Việc</h4>
+
+            <div class="flex items-center gap-6 justify-center mb-16">
+                <button onclick="switchTimerMode('work')" class="w-14 h-14 rounded-full bg-white/10 text-white border border-white/20 flex items-center justify-center hover:bg-white hover:text-ghia-bg transition-colors" title="Chế độ Làm việc 45p"><i class="fas fa-brain text-xl"></i></button>
+                <button onclick="toggleTimer()" id="zenTimerToggleBtn" class="w-20 h-20 rounded-full bg-white text-ghia-bg flex items-center justify-center shadow-[0_0_30px_rgba(255,255,255,0.3)] hover:scale-105 transition-transform text-3xl"><i class="fas fa-play ml-1"></i></button>
+                <button onclick="switchTimerMode('break')" class="w-14 h-14 rounded-full bg-green-500/20 text-green-300 border border-green-500/30 flex items-center justify-center hover:bg-green-500 hover:text-white transition-colors" title="Chế độ Nghỉ ngơi 15p"><i class="fas fa-coffee text-xl"></i></button>
+            </div>
+            
+            <div class="relative max-w-lg mx-auto">
+                <select id="zenTaskSelector" class="w-full appearance-none bg-black/20 border border-white/20 rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-white transition-colors font-sans text-lg md:text-xl cursor-pointer text-center truncate pr-10 shadow-inner">
+                    <option value="" class="text-ghia-ink">-- Chọn một công việc để tập trung --</option>
+                </select>
+                <i class="fas fa-chevron-down absolute right-6 top-1/2 transform -translate-y-1/2 text-white/50 pointer-events-none"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERLAY: EYE CARE 20-20-20 -->
+    <div id="eyeCareOverlay" class="fixed inset-0 z-[9999] bg-ghia-bg/40 backdrop-blur-2xl hidden flex-col items-center justify-center p-6 opacity-0 transition-opacity duration-1000">
+        <div class="text-center max-w-lg bg-surface/90 p-10 rounded-[2rem] shadow-2xl border border-ghia-tan/50">
+            <i class="fas fa-eye text-5xl text-ghia-rust mb-6 animate-pulse"></i>
+            <h2 class="font-serif italic text-3xl text-ghia-ink mb-3">Đã đến lúc chớp mắt!</h2>
+            <p class="text-sm text-ghia-muted mb-8 leading-relaxed">Bạn đã nhìn màn hình liên tục 20 phút. Hãy rời mắt và nhìn một vật cách xa 6 mét trong vòng 20 giây để bảo vệ thị lực.</p>
+            <div class="text-6xl font-serif text-ghia-rust font-bold mb-4" id="eyeCareCountdown">20</div>
+            <p class="text-[10px] font-bold uppercase tracking-widest text-ghia-muted">Giây nghỉ ngơi</p>
+        </div>
+    </div>
+
+    <!-- MODAL: ROULETTE PHẦN THƯỞNG -->
+    <div id="rouletteModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[80] hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-surface w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300 border border-ghia-tan text-center relative" id="rouletteModalContent">
+            
+            <div class="p-8 pb-10">
+                <div class="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner text-3xl">
+                    <i class="fas fa-gift"></i>
+                </div>
+                <h3 class="font-serif italic text-3xl text-ghia-ink mb-2">Thành Quả Xứng Đáng!</h3>
+                <p class="text-sm text-ghia-muted mb-8">Bạn vừa hoàn thành 3 công việc ưu tiên. Hãy quay vòng quay để nhận một phần thưởng nhỏ nhé!</p>
+                
+                <div class="h-16 overflow-hidden bg-ghia-cream border border-ghia-rust/30 rounded-xl relative flex items-center justify-center mb-8 shadow-inner" id="rouletteBox">
+                    <div id="rouletteText" class="absolute w-full text-center font-bold text-ghia-rust text-lg">
+                    </div>
+                </div>
+
+                <button onclick="startRoulette()" id="spinBtn" class="bg-ghia-rust hover:bg-ghia-ink text-white px-10 py-3.5 rounded-full font-bold uppercase tracking-widest text-sm transition-all shadow-lg hover:scale-105 active:scale-95">
+                    Quay Thưởng <i class="fas fa-random ml-1"></i>
+                </button>
+            </div>
+            <button onclick="closeRouletteModal()" class="absolute top-4 right-4 text-ghia-muted hover:text-ghia-rust transition-colors w-8 h-8 flex items-center justify-center">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL: NHẬT KÝ TỈNH THỨC -->
+    <div id="reflectionModal" class="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[80] hidden opacity-0 transition-opacity duration-500 p-4">
+        <div class="bg-surface w-full max-w-xl rounded-[2rem] shadow-2xl overflow-hidden transform scale-95 transition-transform duration-500 border border-ghia-tan" id="reflectionModalContent">
+            
+            <div class="p-8 md:p-12 text-center">
+                <i class="fas fa-moon text-4xl text-ghia-muted/50 mb-6"></i>
+                <h3 class="font-serif italic text-3xl text-ghia-ink mb-2">Nhật Ký Cuối Ngày</h3>
+                <p class="text-sm text-ghia-muted mb-8" id="reflectionPrompt">Hôm nay điều gì làm bạn tự hào nhất?</p>
+                
+                <textarea id="reflectionText" rows="4" placeholder="Viết vài dòng chia sẻ cảm xúc của bạn..." class="w-full bg-ghia-card/50 border border-ghia-tan rounded-2xl py-4 px-5 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans text-base resize-none shadow-inner mb-8 leading-relaxed"></textarea>
+
+                <div class="flex gap-4 justify-center">
+                    <button onclick="closeReflectionModal()" class="px-8 py-3 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-white border border-ghia-tan text-ghia-muted hover:bg-ghia-cream">
+                        Bỏ qua
+                    </button>
+                    <button onclick="saveReflection()" class="bg-ghia-ink hover:bg-ghia-rust text-white px-10 py-3 rounded-full font-bold uppercase tracking-widest text-xs transition-colors shadow-lg">
+                        Lưu Kỷ Niệm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: Chỉnh sửa chi tiết Task -->
+    <div id="taskModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-surface w-full max-w-xl rounded-[2rem] shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] border border-ghia-tan" id="taskModalContent">
+            
+            <div class="bg-ghia-ink text-white px-6 py-5 flex justify-between items-center flex-shrink-0">
+                <h3 class="font-serif italic text-2xl" id="taskModalTitle">Chi tiết công việc</h3>
+                <button onclick="closeTaskModal()" class="text-white/70 hover:text-white transition p-2"><i class="fas fa-times text-xl"></i></button>
+            </div>
+
+            <div class="p-6 md:p-8 space-y-6 overflow-y-auto flex-1 hide-scrollbar">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-widest text-ghia-muted mb-2">Tên công việc</label>
+                    <input type="text" id="editTaskTitle" class="w-full bg-ghia-card/30 border border-ghia-tan rounded-xl py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans font-semibold">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-ghia-muted mb-2">Hạn chót</label>
+                        <input type="date" id="editTaskDate" class="w-full bg-ghia-card/30 border border-ghia-tan rounded-xl py-3 px-4 text-ghia-muted focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-ghia-muted mb-2"><i class="fas fa-redo text-[10px] mr-1"></i> Lặp lại</label>
+                        <select id="editTaskRecurring" class="w-full bg-ghia-card/30 border border-ghia-tan rounded-xl py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm cursor-pointer">
+                            <option value="none">Không</option>
+                            <option value="daily">Hàng ngày</option>
+                            <option value="weekly">Hàng tuần</option>
+                            <option value="monthly">Hàng tháng</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-widest text-ghia-muted mb-2"><i class="fas fa-bolt text-[10px] mr-1"></i> Năng lượng</label>
+                        <select id="editTaskEnergy" class="w-full bg-ghia-card/30 border border-ghia-tan rounded-xl py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm cursor-pointer">
+                            <option value="none">Không chọn</option>
+                            <option value="high">⚡ Cao</option>
+                            <option value="medium">🔋 Vừa</option>
+                            <option value="low">🪫 Thấp</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-widest text-ghia-muted mb-2">Ghi chú thêm</label>
+                    <textarea id="editTaskNotes" rows="3" placeholder="Đính kèm link tài liệu, mô tả chi tiết..." class="w-full bg-ghia-card/30 border border-ghia-tan rounded-xl py-3 px-4 text-ghia-ink focus:outline-none focus:border-ghia-rust transition-colors font-sans text-sm resize-none"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-widest text-ghia-muted mb-2">Các bước nhỏ (Sub-tasks)</label>
+                    
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="newSubtaskInput" placeholder="Ví dụ: Tìm tài liệu tham khảo" class="flex-1 bg-ghia-card/30 border border-ghia-tan rounded-full py-2 px-4 text-ghia-ink text-sm focus:outline-none focus:border-ghia-rust transition-colors" onkeypress="if(event.key === 'Enter') addSubtaskModal()">
+                        <button onclick="addSubtaskModal()" class="bg-ghia-cream border border-ghia-tan text-ghia-ink px-4 py-2 rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-ghia-rust hover:text-white transition-colors">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+
+                    <div id="subtasksList" class="space-y-2 max-h-40 overflow-y-auto hide-scrollbar">
+                        <!-- Render subtasks here -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-ghia-cream px-6 py-4 flex justify-end border-t border-ghia-tan flex-shrink-0">
+                <button onclick="saveTaskDetails()" class="bg-ghia-rust hover:bg-ghia-ink text-white px-8 py-3 rounded-full font-bold uppercase tracking-widest text-xs transition-colors shadow-lg">Lưu Chi Tiết</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS LOGIC -->
+    <script>
+        // Init Theme
+        document.addEventListener('DOMContentLoaded', () => {
+            if (localStorage.getItem('ghiaTheme') === 'dark') {
+                document.documentElement.classList.add('dark');
+                document.getElementById('themeIcon').className = 'fas fa-sun text-lg';
+            }
+            initNotificationUI();
+            
+            // Check Eye Care Pref
+            if(localStorage.getItem('ghiaEyeCare') === 'true') toggleEyeCare(true);
+        });
+
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            localStorage.setItem('ghiaTheme', isDark ? 'dark' : 'light');
+            document.getElementById('themeIcon').className = isDark ? 'fas fa-sun text-lg' : 'fas fa-moon text-lg';
+        }
+
+        // ---------------- PUSH NOTIFICATION & AUDIO LOGIC ----------------
+        let audioCtx = null;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if(AudioContext) audioCtx = new AudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playBingSound() {
+            try {
+                if (!audioCtx) initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                osc.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.5);
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.05);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 1);
+            } catch (e) { console.log(e); }
+        }
+
+        function initNotificationUI() {
+            const icon = document.getElementById('notifyIcon');
+            const btn = document.getElementById('notifyBtn');
+            if (!("Notification" in window)) { if(btn) btn.style.display = 'none'; return; }
+            if (Notification.permission === "granted") {
+                icon.className = "fas fa-bell text-sm text-ghia-forest";
+                btn.classList.add('bg-green-50');
+            } else {
+                icon.className = "fas fa-bell-slash text-sm";
+                btn.classList.remove('bg-green-50');
+            }
+        }
+
+        function requestNotificationPermission() {
+            initAudio(); 
+            if (!("Notification" in window)) { alert("Trình duyệt không hỗ trợ thông báo."); return; }
+            Notification.requestPermission().then(permission => {
+                initNotificationUI();
+                if (permission === "granted") {
+                    sendNotification("Thành công!", "Sẽ thông báo khi hết giờ hoặc tới hạn.");
+                }
+            });
+        }
+
+        function sendNotification(title, body) {
+            playBingSound();
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(title, { body: body, icon: "https://cdn-icons-png.flaticon.com/512/825/825590.png" });
+            } else {
+                setTimeout(() => alert(title + "\n\n" + body), 100);
+            }
+        }
+
+        function checkDailyDeadlines() {
+            if (!("Notification" in window) || Notification.permission !== "granted") return;
+            const todayObj = new Date(); todayObj.setHours(0, 0, 0, 0);
+            const dueTodayTasks = tasks.filter(t => {
+                if(t.isDone || !t.dueDate) return false;
+                const dueObj = new Date(t.dueDate); dueObj.setHours(0, 0, 0, 0);
+                return dueObj.getTime() === todayObj.getTime();
+            });
+            if (dueTodayTasks.length > 0) {
+                sendNotification('⏰ Việc cần hoàn thành hôm nay!', `Bạn có ${dueTodayTasks.length} công việc có hạn chót hôm nay!`);
+            }
+        }
+
+        // ---------------- DATA & STATE ----------------
+        // Có thêm `isFrog` và type `inbox`
+        let tasks = JSON.parse(localStorage.getItem('ghiaTasks_Tracker')) || [];
+
+        let nav = 0; 
+        let currentNavMonth = ''; 
+        let activeWeek = 1; 
+        let selectedDate = ''; 
+        let activeCategoryFilter = 'all';
+        let currentMainView = 'board';
+        let searchQuery = '';
+        let analyticsTimeFilter = 'all';
+        let hasCheckedDeadlines = false;
+        
+        // LOW ENERGY MODE
+        let isLowEnergyMode = false;
+
+        function toggleLowEnergyMode() {
+            isLowEnergyMode = !isLowEnergyMode;
+            const btn = document.getElementById('btnLowEnergy');
+            if (isLowEnergyMode) {
+                btn.classList.remove('bg-surface', 'text-ghia-muted', 'border-ghia-tan');
+                btn.classList.add('bg-ghia-rust', 'text-white', 'border-ghia-rust', 'shadow-md');
+                confetti({particleCount: 50, spread: 40, origin: {y: 0.8}, colors: ['#A5736F']});
+            } else {
+                btn.classList.add('bg-surface', 'text-ghia-muted', 'border-ghia-tan');
+                btn.classList.remove('bg-ghia-rust', 'text-white', 'border-ghia-rust', 'shadow-md');
+            }
+            renderTasks();
+        }
+
+        function switchMainView(view) {
+            currentMainView = view;
+            const btnBoard = document.getElementById('tabBoard');
+            const btnDeadline = document.getElementById('tabDeadline');
+            const btnInbox = document.getElementById('tabInbox');
+            const btnAnalytics = document.getElementById('tabAnalytics');
+            
+            const viewBoard = document.getElementById('boardView');
+            const viewDeadline = document.getElementById('deadlineView');
+            const viewInbox = document.getElementById('inboxView');
+            const viewAnalytics = document.getElementById('analyticsView');
+            const filterWrap = document.getElementById('filterContainerWrapper');
+
+            [btnBoard, btnDeadline, btnInbox, btnAnalytics].forEach(btn => {
+                btn.className = "px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-surface border border-ghia-tan text-ghia-ink hover:bg-ghia-cream shadow-sm";
+            });
+            
+            viewBoard.classList.add('hidden'); viewBoard.classList.remove('grid');
+            viewDeadline.classList.add('hidden'); viewDeadline.classList.remove('flex');
+            viewInbox.classList.add('hidden'); viewInbox.classList.remove('flex');
+            viewAnalytics.classList.add('hidden'); viewAnalytics.classList.remove('flex');
+
+            if (view === 'board') {
+                btnBoard.className = "px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-ghia-rust text-white shadow-md";
+                viewBoard.classList.remove('hidden'); viewBoard.classList.add('grid');
+                filterWrap.classList.remove('hidden'); filterWrap.classList.add('flex');
+            } else if (view === 'deadline') {
+                btnDeadline.className = "px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-ghia-rust text-white shadow-md";
+                viewDeadline.classList.remove('hidden'); viewDeadline.classList.add('flex');
+                filterWrap.classList.remove('hidden'); filterWrap.classList.add('flex');
+            } else if (view === 'inbox') {
+                btnInbox.className = "px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-ghia-rust text-white shadow-md";
+                viewInbox.classList.remove('hidden'); viewInbox.classList.add('flex');
+                filterWrap.classList.remove('hidden'); filterWrap.classList.add('flex');
+            } else if (view === 'analytics') {
+                btnAnalytics.className = "px-6 py-2.5 rounded-full font-bold uppercase tracking-widest text-xs transition-colors bg-ghia-rust text-white shadow-md";
+                viewAnalytics.classList.remove('hidden'); viewAnalytics.classList.add('flex');
+                filterWrap.classList.add('hidden'); filterWrap.classList.remove('flex');
+            }
+            renderTasks();
+        }
+
+        window.handleSearch = function() {
+            searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            renderTasks();
+        };
+
+        // ---------------- 5-MINUTE RULE LOGIC ----------------
+        let fiveMinInterval = null;
+        let fiveMinTime = 300; 
+        let activeFiveMinTaskId = null;
+
+        window.startFiveMinTimer = function(id, title) {
+            activeFiveMinTaskId = id;
+            document.getElementById('fiveMinTaskTitle').innerText = title;
+            fiveMinTime = 300;
+            updateFiveMinDisplay();
+            document.getElementById('fiveMinProgress').style.width = '100%';
+            
+            const overlay = document.getElementById('fiveMinOverlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            
+            if (timerRunning) toggleTimer(); // Dừng Pomodoro nếu đang chạy
+            
+            clearInterval(fiveMinInterval);
+            fiveMinInterval = setInterval(() => {
+                fiveMinTime--;
+                updateFiveMinDisplay();
+                document.getElementById('fiveMinProgress').style.width = `${(fiveMinTime/300)*100}%`;
+                if (fiveMinTime <= 0) {
+                    clearInterval(fiveMinInterval);
+                    playBingSound();
+                    confetti({ particleCount: 150, spread: 80 });
+                    sendNotification("Hết 5 phút!", "Bạn đã xử lý xong việc này chưa?");
+                    closeFiveMinTimer();
+                }
+            }, 1000);
+        }
+
+        function updateFiveMinDisplay() {
+            const m = Math.floor(fiveMinTime / 60).toString().padStart(2, '0');
+            const s = (fiveMinTime % 60).toString().padStart(2, '0');
+            document.getElementById('fiveMinTimeDisplay').innerText = `${m}:${s}`;
+        }
+
+        window.closeFiveMinTimer = function() {
+            clearInterval(fiveMinInterval);
+            const overlay = document.getElementById('fiveMinOverlay');
+            overlay.classList.add('opacity-0');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+                activeFiveMinTaskId = null;
+            }, 300);
+        }
+
+        window.completeFiveMinTask = function() {
+            if(activeFiveMinTaskId) {
+                const t = tasks.find(x => x.id === activeFiveMinTaskId);
+                if(t && !t.isDone) {
+                    toggleTask(activeFiveMinTaskId);
+                }
+            }
+            confetti({ particleCount: 150, spread: 80, origin: {y: 0.6} });
+            closeFiveMinTimer();
+        }
+
+        // ---------------- EAT THE FROG LOGIC ----------------
+        window.toggleFrog = function(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                const wasFrog = task.isFrog;
+                // Xóa frog của mọi task khác
+                tasks.forEach(t => t.isFrog = false);
+                task.isFrog = !wasFrog;
+                saveData();
+                if(task.isFrog) {
+                    confetti({ particleCount: 50, spread: 40, colors: ['#22c55e'] });
+                }
+            }
+        }
+
+        // ---------------- INBOX LOGIC ----------------
+        window.addInboxTask = function() {
+            const input = document.getElementById('quickInboxInput');
+            const title = input.value.trim();
+            if (!title) return;
+            tasks.push({
+                id: 'task_' + Date.now(),
+                title: title,
+                type: 'inbox',
+                category: 'other',
+                energyLevel: 'none',
+                dueDate: '',
+                monthYear: currentNavMonth,
+                isDone: false,
+                isPriority: false,
+                isFrog: false,
+                recurring: 'none',
+                notes: "",
+                subtasks: [],
+                dateAdded: Date.now()
+            });
+            input.value = '';
+            saveData();
+            sendNotification("Đã lưu ý tưởng!", "Xem lại trong Hộp Lưu Trữ nhé.");
+        }
+
+
+        // ---------------- EYE CARE 20-20-20 LOGIC ----------------
+        let eyeCareActive = false;
+        let eyeCareInterval = null;
+        let eyeCareTimeout = null;
+        let eyeCareCountdownInterval = null;
+
+        function toggleEyeCare(forceState = null) {
+            eyeCareActive = forceState !== null ? forceState : !eyeCareActive;
+            localStorage.setItem('ghiaEyeCare', eyeCareActive);
+            
+            const btn = document.getElementById('eyeCareBtn');
+            const icon = document.getElementById('eyeCareIcon');
+            
+            if (eyeCareActive) {
+                icon.className = 'fas fa-eye text-ghia-forest text-sm';
+                btn.classList.add('bg-green-50');
+                startEyeCareTimer();
+                if(forceState === null) sendNotification("Đã bật Bảo vệ mắt", "Cứ 20 phút màn hình sẽ mờ đi để bạn cho mắt nghỉ ngơi.");
+            } else {
+                icon.className = 'fas fa-eye-slash text-sm text-ghia-muted';
+                btn.classList.remove('bg-green-50');
+                stopEyeCareTimer();
+            }
+        }
+
+        function startEyeCareTimer() {
+            stopEyeCareTimer();
+            eyeCareInterval = setInterval(triggerEyeBreak, 1200000); 
+        }
+
+        function stopEyeCareTimer() {
+            if(eyeCareInterval) clearInterval(eyeCareInterval);
+            if(eyeCareTimeout) clearTimeout(eyeCareTimeout);
+            if(eyeCareCountdownInterval) clearInterval(eyeCareCountdownInterval);
+            hideEyeBreak();
+        }
+
+        function triggerEyeBreak() {
+            const overlay = document.getElementById('eyeCareOverlay');
+            const wrap = document.getElementById('appWrapper');
+            const numEl = document.getElementById('eyeCareCountdown');
+            
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            setTimeout(() => {
+                overlay.classList.remove('opacity-0');
+                wrap.classList.add('extreme-blur');
+            }, 50);
+
+            playBingSound();
+
+            let count = 20;
+            numEl.textContent = count;
+            
+            eyeCareCountdownInterval = setInterval(() => {
+                count--;
+                numEl.textContent = count;
+                if(count <= 0) hideEyeBreak();
+            }, 1000);
+        }
+
+        function hideEyeBreak() {
+            if(eyeCareCountdownInterval) clearInterval(eyeCareCountdownInterval);
+            const overlay = document.getElementById('eyeCareOverlay');
+            const wrap = document.getElementById('appWrapper');
+            
+            overlay.classList.add('opacity-0');
+            wrap.classList.remove('extreme-blur');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }, 1000);
+        }
+
+        // ---------------- DAILY REFLECTION LOGIC ----------------
+        const reflectionPrompts = [
+            "Hôm nay điều gì làm bạn tự hào nhất về bản thân?",
+            "Bạn cảm thấy biết ơn điều gì trong ngày hôm nay?",
+            "Điều gì bạn muốn làm tốt hơn vào ngày mai?",
+            "Một khoảnh khắc khiến bạn mỉm cười hôm nay là gì?",
+            "Hôm nay bạn đã vượt qua khó khăn nào?",
+            "Hãy mô tả ngày hôm nay của bạn bằng 3 từ."
+        ];
+
+        function openReflectionModal() {
+            const promptEl = document.getElementById('reflectionPrompt');
+            promptEl.textContent = reflectionPrompts[Math.floor(Math.random() * reflectionPrompts.length)];
+            document.getElementById('reflectionText').value = '';
+            
+            const modal = document.getElementById('reflectionModal');
+            const content = document.getElementById('reflectionModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
+        }
+
+        function closeReflectionModal() {
+            const modal = document.getElementById('reflectionModal');
+            const content = document.getElementById('reflectionModalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 500);
+        }
+
+        function saveReflection() {
+            const txt = document.getElementById('reflectionText').value.trim();
+            if(txt) {
+                let logs = JSON.parse(localStorage.getItem('ghiaReflections')) || [];
+                logs.push({ date: new Date().toISOString(), text: txt });
+                localStorage.setItem('ghiaReflections', JSON.stringify(logs));
+            }
+            confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+            closeReflectionModal();
+            setTimeout(() => alert("Đã lưu lại. Chúc bạn một buổi tối an lành! 🌙"), 600);
+        }
+
+        // ---------------- ROULETTE REWARD LOGIC ----------------
+        const rewardList = [
+            "Xem 1 tập phim yêu thích",
+            "Ngủ nướng thêm 15 phút",
+            "Ăn một món vặt ngon",
+            "Lướt MXH 15p không tội lỗi",
+            "Mua 1 món đồ nhỏ trên mạng",
+            "Nghe podcast & thư giãn",
+            "Uống một ly trà sữa/cà phê"
+        ];
+
+        function checkPriorityReward() {
+            let count = parseInt(localStorage.getItem('ghiaPriorityCount') || '0');
+            count++;
+            localStorage.setItem('ghiaPriorityCount', count.toString());
+
+            if (count % 3 === 0) {
+                openRouletteModal();
+            }
+        }
+
+        function openRouletteModal() {
+            const modal = document.getElementById('rouletteModal');
+            const content = document.getElementById('rouletteModalContent');
+            document.getElementById('rouletteText').innerHTML = '<div class="py-4">Sẵn sàng quay thưởng!</div>';
+            document.getElementById('spinBtn').disabled = false;
+            document.getElementById('spinBtn').innerHTML = 'Quay Thưởng <i class="fas fa-random ml-1"></i>';
+
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
+            playBingSound();
+        }
+
+        function closeRouletteModal() {
+            const modal = document.getElementById('rouletteModal');
+            const content = document.getElementById('rouletteModalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); }, 300);
+        }
+
+        function startRoulette() {
+            const btn = document.getElementById('spinBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang quay...';
+
+            const box = document.getElementById('rouletteText');
+            let spinHTML = '';
+            for(let i=0; i<20; i++) {
+                spinHTML += `<div class="py-4 h-16 flex items-center justify-center">${rewardList[Math.floor(Math.random() * rewardList.length)]}</div>`;
+            }
+            const finalReward = rewardList[Math.floor(Math.random() * rewardList.length)];
+            spinHTML += `<div class="py-4 h-16 flex items-center justify-center text-ghia-forest font-black text-xl">${finalReward} 🎉</div>`;
+            
+            box.innerHTML = spinHTML;
+            box.classList.remove('spinning-text');
+            void box.offsetWidth; 
+            box.classList.add('spinning-text');
+
+            setTimeout(() => {
+                confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+                btn.innerHTML = 'Tuyệt Vời!';
+            }, 2000); 
+        }
+
+
+        // ---------------- THỐNG KÊ (ANALYTICS) LOGIC ----------------
+        window.setAnalyticsFilter = function(filterType) {
+            analyticsTimeFilter = filterType;
+            renderTasks(); 
+        }
+
+        function renderAnalytics() {
+            ['all', 'month', 'week'].forEach(f => {
+                const btn = document.getElementById(`btn-stat-${f}`);
+                if (btn) {
+                    if (f === analyticsTimeFilter) {
+                        btn.className = "whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors bg-ghia-rust text-white shadow-sm";
+                    } else {
+                        btn.className = "whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors text-ghia-muted hover:bg-surface border border-ghia-tan/50";
+                    }
+                }
+            });
+
+            let completed = 0; let pending = 0; let priority = 0; let catCounts = {};
+            let filteredStatsTasks = tasks.filter(t => t.type !== 'inbox');
+            const subtitle = document.getElementById('analyticsSubtitle');
+            
+            let displayMonth = currentNavMonth ? currentNavMonth.split('-').reverse().join('/') : '';
+
+            if (analyticsTimeFilter === 'month') {
+                filteredStatsTasks = tasks.filter(t => t.monthYear === currentNavMonth && t.type !== 'inbox');
+                if(subtitle) subtitle.innerText = `Dữ liệu trong tháng ${displayMonth}`;
+            } else if (analyticsTimeFilter === 'week') {
+                filteredStatsTasks = tasks.filter(t => t.monthYear === currentNavMonth && t.type === 'week' + activeWeek);
+                if(subtitle) subtitle.innerText = `Dữ liệu Tuần ${activeWeek}, tháng ${displayMonth}`;
+            } else {
+                if(subtitle) subtitle.innerText = `Dữ liệu tổng hợp toàn thời gian`;
+            }
+
+            filteredStatsTasks.forEach(t => {
+                if(t.isDone) completed++; else pending++;
+                if(t.isPriority && !t.isDone) priority++;
+                const c = t.category || 'other';
+                catCounts[c] = (catCounts[c] || 0) + 1;
+            });
+
+            document.getElementById('statCompleted').textContent = completed;
+            document.getElementById('statPending').textContent = pending;
+            document.getElementById('statPriority').textContent = priority;
+
+            let focusLog = JSON.parse(localStorage.getItem('ghiaFocusLog')) || [];
+            let oldFocus = localStorage.getItem('ghiaFocusTime');
+            if (oldFocus) {
+                let oldMins = JSON.parse(oldFocus) || 0;
+                if (oldMins > 0) focusLog.push({ timestamp: Date.now(), monthYear: currentNavMonth, week: 'week' + activeWeek, minutes: oldMins });
+                localStorage.removeItem('ghiaFocusTime');
+                localStorage.setItem('ghiaFocusLog', JSON.stringify(focusLog));
+            }
+
+            let filteredFocusLog = focusLog;
+            let focusSubTxt = "(Toàn thời gian)";
+
+            if (analyticsTimeFilter === 'month') {
+                filteredFocusLog = focusLog.filter(log => log.monthYear === currentNavMonth);
+                focusSubTxt = "(Tháng đang mở)";
+            } else if (analyticsTimeFilter === 'week') {
+                filteredFocusLog = focusLog.filter(log => log.monthYear === currentNavMonth && log.week === ('week' + activeWeek));
+                focusSubTxt = `(Tuần ${activeWeek})`;
+            }
+
+            let totalFocusMinutes = filteredFocusLog.reduce((acc, log) => acc + log.minutes, 0);
+            document.getElementById('statFocus').textContent = (totalFocusMinutes / 60).toFixed(1);
+            
+            const focusSubEl = document.getElementById('focusSubtitle');
+            if(focusSubEl) focusSubEl.textContent = focusSubTxt;
+
+            const container = document.getElementById('categoryStatsContainer');
+            if(container) {
+                container.innerHTML = '';
+                const total = filteredStatsTasks.length;
+                if(total === 0) {
+                    container.innerHTML = '<p class="text-ghia-muted text-sm italic font-serif">Chưa có dữ liệu công việc trong khoảng thời gian này.</p>';
+                } else {
+                    Object.keys(categoryConfig).forEach(cat => {
+                        if(cat === 'all') return;
+                        const count = catCounts[cat] || 0;
+                        if(count === 0) return;
+                        const pct = Math.round((count / total) * 100);
+                        const info = categoryConfig[cat];
+                        
+                        container.innerHTML += `
+                            <div>
+                                <div class="flex justify-between text-xs font-bold uppercase tracking-widest text-ghia-ink mb-1">
+                                    <span>${info.label} (${count})</span>
+                                    <span>${pct}%</span>
+                                </div>
+                                <div class="w-full bg-ghia-tan/30 h-2 rounded-full overflow-hidden">
+                                    <div class="${info.bar} h-full rounded-full" style="width: ${pct}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            }
+        }
+
+        // ---------------- POMODORO TIMER LOGIC ----------------
+        const WORK_TIME = 45 * 60;
+        const BREAK_TIME = 15 * 60;
+        let timerTime = WORK_TIME;
+        let timerMode = 'work'; 
+        let timerInterval = null;
+        let timerRunning = false;
+
+        function updateTimerDisplay() {
+            const m = Math.floor(timerTime / 60).toString().padStart(2, '0');
+            const s = (timerTime % 60).toString().padStart(2, '0');
+            
+            document.getElementById('timerDisplay').innerText = `${m}:${s}`;
+            const modeEl = document.getElementById('timerModeDisplay');
+            if(timerMode === 'work') {
+                modeEl.innerText = 'Làm việc (45P)';
+                modeEl.className = 'text-[10px] font-bold uppercase tracking-widest text-ghia-rust mb-1 bg-ghia-rust/10 px-3 py-1 rounded-full border border-ghia-rust/20 mt-3 pointer-events-none';
+            } else {
+                modeEl.innerText = 'Giải lao (15P)';
+                modeEl.className = 'text-[10px] font-bold uppercase tracking-widest text-green-700 mb-1 bg-green-500/10 px-3 py-1 rounded-full border border-green-300/50 mt-3 pointer-events-none';
+            }
+
+            const zenDisplay = document.getElementById('zenTimerDisplay');
+            if(zenDisplay) zenDisplay.innerText = `${m}:${s}`;
+            const zenModeEl = document.getElementById('zenTimerModeDisplay');
+            if(zenModeEl) {
+                zenModeEl.innerText = timerMode === 'work' ? 'Đang Làm Việc' : 'Đang Giải Lao';
+                zenModeEl.className = timerMode === 'work' 
+                    ? 'text-[10px] md:text-xs font-bold uppercase tracking-widest text-ghia-bg mb-10 bg-white px-5 py-2.5 rounded-full inline-block shadow-md'
+                    : 'text-[10px] md:text-xs font-bold uppercase tracking-widest text-white mb-10 bg-green-500 px-5 py-2.5 rounded-full inline-block shadow-md';
+            }
+        }
+
+        function setTimerBtnsState(isPlaying) {
+            const btn = document.getElementById('timerToggleBtn');
+            const zenBtn = document.getElementById('zenTimerToggleBtn');
+            const html = isPlaying ? '<i class="fas fa-pause pointer-events-none"></i>' : '<i class="fas fa-play ml-1 pointer-events-none"></i>';
+            const normClass = isPlaying 
+                ? 'w-14 h-14 rounded-full bg-ghia-ink text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform text-lg cursor-pointer'
+                : 'w-14 h-14 rounded-full bg-ghia-rust text-white flex items-center justify-center shadow-md hover:scale-105 transition-transform text-lg cursor-pointer';
+            
+            btn.innerHTML = html; btn.className = normClass;
+            if(zenBtn) { zenBtn.innerHTML = html; }
+        }
+
+        function toggleTimer() {
+            initAudio(); 
+            if(timerRunning) {
+                clearInterval(timerInterval);
+                timerRunning = false;
+                setTimerBtnsState(false);
+            } else {
+                timerRunning = true;
+                setTimerBtnsState(true);
+                
+                timerInterval = setInterval(() => {
+                    timerTime--;
+                    if(timerTime <= 0) {
+                        clearInterval(timerInterval);
+                        timerRunning = false;
+                        setTimerBtnsState(false);
+                        
+                        if (timerMode === 'work') {
+                            let focusLog = JSON.parse(localStorage.getItem('ghiaFocusLog')) || [];
+                            focusLog.push({ timestamp: Date.now(), monthYear: currentNavMonth, week: 'week' + activeWeek, minutes: 45 });
+                            localStorage.setItem('ghiaFocusLog', JSON.stringify(focusLog));
+
+                            confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+                            sendNotification('Hết giờ làm việc! 🎉', 'Bạn làm tốt lắm. Hãy đứng lên vươn vai và nghỉ ngơi 15 phút nhé.');
+                            switchTimerMode('break');
+                            if(currentMainView === 'analytics') renderAnalytics();
+                        } else {
+                            sendNotification('Hết giờ giải lao! 🚀', 'Sẵn sàng quay lại công việc chưa? Bấm Play để tiếp tục nhé.');
+                            switchTimerMode('work');
+                        }
+                    }
+                    updateTimerDisplay();
+                }, 1000);
+            }
+        }
+
+        function switchTimerMode(mode) {
+            timerMode = mode;
+            timerTime = mode === 'work' ? WORK_TIME : BREAK_TIME;
+            clearInterval(timerInterval);
+            timerRunning = false;
+            setTimerBtnsState(false);
+            updateTimerDisplay();
+        }
+
+        function resetTimer() { switchTimerMode(timerMode); }
+        updateTimerDisplay();
+
+        // ---------------- POMODORO DRAG & DROP LOGIC ----------------
+        const pomoWidget = document.getElementById('pomodoroWidget');
+        let isDraggingPomo = false;
+        let pomoCurrentX; let pomoCurrentY; let pomoInitialX; let pomoInitialY;
+        let pomoXOffset = 0; let pomoYOffset = 0;
+
+        pomoWidget.addEventListener("mousedown", dragStartPomo);
+        document.addEventListener("mouseup", dragEndPomo);
+        document.addEventListener("mousemove", dragPomo);
+
+        pomoWidget.addEventListener("touchstart", dragStartPomo, {passive: false});
+        document.addEventListener("touchend", dragEndPomo);
+        document.addEventListener("touchmove", dragPomo, {passive: false});
+
+        function dragStartPomo(e) {
+            if (e.target.closest('button')) return;
+            if (e.type === "touchstart") {
+                pomoInitialX = e.touches[0].clientX - pomoXOffset;
+                pomoInitialY = e.touches[0].clientY - pomoYOffset;
+            } else {
+                pomoInitialX = e.clientX - pomoXOffset;
+                pomoInitialY = e.clientY - pomoYOffset;
+            }
+            if (e.target.closest('#pomodoroWidget')) {
+                isDraggingPomo = true;
+                pomoWidget.classList.remove('transition-all', 'duration-300');
+            }
+        }
+
+        function dragEndPomo(e) {
+            if (!isDraggingPomo) return;
+            pomoInitialX = pomoCurrentX;
+            pomoInitialY = pomoCurrentY;
+            isDraggingPomo = false;
+            pomoWidget.classList.add('transition-all', 'duration-300');
+        }
+
+        function dragPomo(e) {
+            if (isDraggingPomo) {
+                e.preventDefault();
+                if (e.type === "touchmove") {
+                    pomoCurrentX = e.touches[0].clientX - pomoInitialX;
+                    pomoCurrentY = e.touches[0].clientY - pomoInitialY;
+                } else {
+                    pomoCurrentX = e.clientX - pomoInitialX;
+                    pomoCurrentY = e.clientY - pomoInitialY;
+                }
+                pomoXOffset = pomoCurrentX;
+                pomoYOffset = pomoCurrentY;
+                setTranslate(pomoCurrentX, pomoCurrentY, pomoWidget);
+            }
+        }
+
+        function setTranslate(xPos, yPos, el) { el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`; }
+
+        // ---------------- ZEN MODE LOGIC ----------------
+        let zenModeActive = false;
+        function toggleZenMode() {
+            zenModeActive = !zenModeActive;
+            const overlay = document.getElementById('zenModeOverlay');
+            if (zenModeActive) {
+                overlay.classList.remove('hidden');
+                overlay.classList.add('flex');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+                populateZenTasks();
+            } else {
+                overlay.classList.add('opacity-0');
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                    overlay.classList.remove('flex');
+                }, 500);
+            }
+        }
+
+        function populateZenTasks() {
+            const sel = document.getElementById('zenTaskSelector');
+            sel.innerHTML = '<option value="" class="text-ghia-ink">-- Chọn một công việc để tập trung --</option>';
+            const pendingTasks = tasks.filter(t => !t.isDone && t.type !== 'inbox').sort((a,b) => (a.isPriority===b.isPriority)?0:(a.isPriority?-1:1));
+            pendingTasks.forEach(t => {
+                sel.innerHTML += `<option value="${t.id}" class="text-ghia-ink">${t.isPriority ? '🔥 ' : ''}${t.title}</option>`;
+            });
+        }
+
+
+        // ---------------- MODAL CHI TIẾT CÔNG VIỆC ----------------
+        let editingTaskId = null;
+        let tempSubtasks = [];
+
+        function openTaskModal(id) {
+            const task = tasks.find(t => t.id === id);
+            if(!task) return;
+            
+            editingTaskId = id;
+            document.getElementById('editTaskTitle').value = task.title;
+            document.getElementById('editTaskDate').value = task.dueDate || '';
+            document.getElementById('editTaskRecurring').value = task.recurring || 'none';
+            document.getElementById('editTaskEnergy').value = task.energyLevel || 'none';
+            document.getElementById('editTaskNotes').value = task.notes || '';
+            tempSubtasks = task.subtasks ? JSON.parse(JSON.stringify(task.subtasks)) : []; 
+            
+            renderSubtasksModal();
+            
+            const modal = document.getElementById('taskModal');
+            const content = document.getElementById('taskModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); content.classList.remove('scale-95'); }, 10);
+        }
+
+        function closeTaskModal() {
+            const modal = document.getElementById('taskModal');
+            const content = document.getElementById('taskModalContent');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => { modal.classList.add('hidden'); editingTaskId = null; }, 300);
+        }
+
+        function renderSubtasksModal() {
+            const listEl = document.getElementById('subtasksList');
+            listEl.innerHTML = '';
+            
+            if(tempSubtasks.length === 0) {
+                listEl.innerHTML = '<div class="text-xs text-ghia-muted italic">Chưa có việc nhỏ nào.</div>';
+                return;
+            }
+
+            tempSubtasks.forEach(st => {
+                const isChecked = st.isDone ? 'checked' : '';
+                const textStyle = st.isDone ? 'line-through text-ghia-muted' : 'text-ghia-ink font-medium';
+                
+                listEl.innerHTML += `
+                    <div class="flex items-center gap-3 bg-surface/50 px-3 py-2 rounded-xl border border-ghia-tan/50">
+                        <div class="relative flex-shrink-0 cursor-pointer mt-0.5">
+                            <input type="checkbox" ${isChecked} onchange="toggleTempSubtask('${st.id}')" class="ghia-checkbox peer" style="width: 16px; height: 16px;">
+                        </div>
+                        <div class="flex-1 text-sm ${textStyle}">${st.title}</div>
+                        <button onclick="deleteTempSubtask('${st.id}')" class="text-ghia-muted hover:text-ghia-rust transition-colors"><i class="fas fa-times"></i></button>
+                    </div>
+                `;
+            });
+        }
+
+        function addSubtaskModal() {
+            const input = document.getElementById('newSubtaskInput');
+            const title = input.value.trim();
+            if(!title) return;
+            tempSubtasks.push({ id: 'sub_' + Date.now(), title: title, isDone: false });
+            input.value = '';
+            renderSubtasksModal();
+        }
+
+        window.toggleTempSubtask = function(id) {
+            const st = tempSubtasks.find(s => s.id === id);
+            if(st) st.isDone = !st.isDone;
+            renderSubtasksModal();
+        }
+
+        window.deleteTempSubtask = function(id) {
+            tempSubtasks = tempSubtasks.filter(s => s.id !== id);
+            renderSubtasksModal();
+        }
+
+        function saveTaskDetails() {
+            if(!editingTaskId) return;
+            const task = tasks.find(t => t.id === editingTaskId);
+            if(!task) return;
+
+            const newTitle = document.getElementById('editTaskTitle').value.trim();
+            if(newTitle) task.title = newTitle;
+            
+            task.dueDate = document.getElementById('editTaskDate').value;
+            task.recurring = document.getElementById('editTaskRecurring').value;
+            task.energyLevel = document.getElementById('editTaskEnergy').value;
+            task.notes = document.getElementById('editTaskNotes').value.trim();
+            task.subtasks = tempSubtasks;
+
+            saveData();
+            closeTaskModal();
+        }
+
+        // ---------------- LỊCH (CALENDAR) LOGIC ----------------
+
+        function renderCalendar() {
+            const calendarDays = document.getElementById('calendarDays');
+            const monthLabel = document.getElementById('calendarMonth');
+            const boardMonthLabel1 = document.getElementById('boardMonthDisplay1');
+            const dt = new Date();
+
+            if (nav !== 0) dt.setMonth(new Date().getMonth() + nav);
+            const month = dt.getMonth();
+            const year = dt.getFullYear();
+
+            const mStr = (month + 1).toString().padStart(2, '0');
+            currentNavMonth = `${year}-${mStr}`;
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const monthNames = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
+            const displayTitle = `${monthNames[month]}, ${year}`;
+            
+            monthLabel.innerText = displayTitle;
+            boardMonthLabel1.innerText = displayTitle;
+            calendarDays.innerHTML = '';
+            
+            const paddingDays = firstDayOfMonth.getDay(); 
+
+            for(let i = 1; i <= paddingDays + daysInMonth; i++) {
+                const daySquare = document.createElement('div');
+                daySquare.classList.add('w-8', 'h-8', 'flex', 'items-center', 'justify-center', 'mx-auto', 'rounded-full', 'transition-colors', 'cursor-pointer', 'calendar-day');
+                
+                if (i > paddingDays) {
+                    const dayNumber = i - paddingDays;
+                    const currentDateStr = `${year}-${mStr}-${dayNumber.toString().padStart(2, '0')}`;
+                    daySquare.innerText = dayNumber;
+                    
+                    if (currentDateStr === selectedDate) {
+                        daySquare.classList.add('bg-ghia-rust', 'text-white', 'font-bold');
+                    } else {
+                        daySquare.classList.add('text-ghia-ink', 'hover:bg-ghia-tan');
+                    }
+
+                    daySquare.addEventListener('click', () => {
+                        document.querySelectorAll('.calendar-day').forEach(el => {
+                            if(!el.classList.contains('bg-ghia-rust')) {
+                                el.classList.remove('bg-ghia-ink', 'text-white', 'font-bold');
+                                el.classList.add('text-ghia-ink');
+                            }
+                        });
+                        
+                        if (!daySquare.classList.contains('bg-ghia-rust')) {
+                            daySquare.classList.remove('text-ghia-ink');
+                            daySquare.classList.add('bg-ghia-ink', 'text-white', 'font-bold');
+                        }
+
+                        selectedDate = currentDateStr;
+                        document.getElementById('taskDate').value = selectedDate;
+                        renderTasks(); 
+                    });
+                } else {
+                    daySquare.classList.add('text-transparent', 'pointer-events-none');
+                }
+                calendarDays.appendChild(daySquare);
+            }
+            renderTasks();
+            
+            if(!hasCheckedDeadlines) {
+                setTimeout(() => { checkDailyDeadlines(); hasCheckedDeadlines = true; }, 3000);
+            }
+        }
+
+        function initCalendar() {
+            document.getElementById('prevMonthBtn').addEventListener('click', () => { nav--; renderCalendar(); });
+            document.getElementById('nextMonthBtn').addEventListener('click', () => { nav++; renderCalendar(); });
+            
+            const today = new Date();
+            const y = today.getFullYear();
+            const m = (today.getMonth() + 1).toString().padStart(2, '0');
+            const d = today.getDate().toString().padStart(2, '0');
+            selectedDate = `${y}-${m}-${d}`;
+            document.getElementById('taskDate').value = selectedDate;
+            renderCalendar();
+        }
+
+        // ---------------- TASK ACTIONS ----------------
+
+        document.getElementById('taskInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') addTask();
+        });
+
+        function switchWeek(weekNum) {
+            activeWeek = weekNum;
+            document.getElementById('taskType').value = 'week' + weekNum;
+            renderTasks();
+        }
+
+        function addTask() {
+            const inputEl = document.getElementById('taskInput');
+            const typeEl = document.getElementById('taskType');
+            const categoryEl = document.getElementById('taskCategory');
+            const energyEl = document.getElementById('taskEnergy');
+            const dateEl = document.getElementById('taskDate');
+            
+            const title = inputEl.value.trim();
+            if (!title) return;
+
+            const newTask = {
+                id: 'task_' + Date.now(),
+                title: title,
+                type: typeEl.value,
+                category: categoryEl.value,
+                energyLevel: energyEl.value,
+                dueDate: dateEl.value,
+                monthYear: currentNavMonth,
+                isDone: false,
+                isPriority: false,
+                isFrog: false,
+                recurring: 'none',
+                notes: "",
+                subtasks: [],
+                dateAdded: Date.now()
+            };
+
+            tasks.push(newTask);
+            saveData();
+            inputEl.value = ''; 
+            inputEl.focus(); 
+        }
+
+        function toggleTask(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.isDone = !task.isDone;
+                
+                if (task.isDone && task.isPriority) {
+                    checkPriorityReward();
+                }
+
+                if (task.isDone && task.recurring && task.recurring !== 'none') {
+                    let nextDate = task.dueDate ? new Date(task.dueDate) : new Date();
+                    if(task.recurring === 'daily') nextDate.setDate(nextDate.getDate() + 1);
+                    else if(task.recurring === 'weekly') nextDate.setDate(nextDate.getDate() + 7);
+                    else if(task.recurring === 'monthly') nextDate.setMonth(nextDate.getMonth() + 1);
+                    
+                    const m = (nextDate.getMonth() + 1).toString().padStart(2, '0');
+                    const d = nextDate.getDate().toString().padStart(2, '0');
+                    const y = nextDate.getFullYear();
+                    
+                    const newTask = { 
+                        ...task, 
+                        id: 'task_' + Date.now(), 
+                        isDone: false, 
+                        dueDate: `${y}-${m}-${d}`,
+                        dateAdded: Date.now()
+                    };
+                    if(newTask.subtasks) newTask.subtasks.forEach(s => s.isDone = false);
+                    tasks.push(newTask);
+                    task.recurring = 'none'; 
+                }
+
+                saveData();
+
+                if (task.type === 'day' && task.isDone) {
+                    const dayTasks = tasks.filter(t => t.type === 'day' && t.dueDate === selectedDate && (activeCategoryFilter === 'all' || t.category === activeCategoryFilter));
+                    if (dayTasks.length > 0 && dayTasks.every(t => t.isDone)) {
+                        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#D32F2F', '#4A100C', '#A5736F', '#2E7D32', '#FAD566'] });
+                        sendNotification("Xuất sắc! 🎉", "Bạn đã hoàn thành toàn bộ mục tiêu hôm nay.");
+                    }
+                }
+            }
+        }
+
+        function togglePriority(id) {
+            const task = tasks.find(t => t.id === id);
+            if (task) { task.isPriority = !task.isPriority; saveData(); }
+        }
+
+        function deleteTask(id) {
+            tasks = tasks.filter(t => t.id !== id);
+            saveData();
+        }
+
+        function changeType(id, newType) {
+            const task = tasks.find(t => t.id === id);
+            if (task) {
+                task.type = newType;
+                if (newType === 'day') task.dueDate = selectedDate; 
+                saveData();
+            }
+        }
+
+        function clearCompleted(baseType) {
+            let actualType = baseType;
+            if (baseType === 'week') actualType = 'week' + activeWeek;
+            const hasCompleted = tasks.some(t => t.type === actualType && t.isDone && (baseType === 'day' ? t.dueDate === selectedDate : (t.monthYear === currentNavMonth || !t.monthYear)));
+            if (!hasCompleted) { alert("Danh sách chưa có công việc hoàn thành để dọn dẹp!"); return; }
+            if(confirm('Chắc chắn muốn dọn sạch việc đã hoàn thành ở cột này?')) {
+                tasks = tasks.filter(t => !(t.type === actualType && t.isDone && (baseType === 'day' ? t.dueDate === selectedDate : (t.monthYear === currentNavMonth || !t.monthYear))));
+                saveData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('ghiaTasks_Tracker', JSON.stringify(tasks));
+            renderTasks();
+            if(zenModeActive) populateZenTasks();
+        }
+
+        // ---------------- QUICK FILTER & CONFIG ----------------
+        
+        function setFilter(category) {
+            activeCategoryFilter = category;
+            renderTasks();
+        }
+
+        const categoryConfig = {
+            'all': { label: 'Tất cả', style: 'bg-ghia-rust text-white border-ghia-rust shadow-sm', bar: 'bg-ghia-rust' },
+            'routine': { label: 'Thường nhật', style: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700', bar: 'bg-gray-500' },
+            'urgent': { label: 'Khẩn cấp', style: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800/50', bar: 'bg-red-500' },
+            'study': { label: 'Học tập', style: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800/50', bar: 'bg-blue-500' },
+            'extracurricular': { label: 'Ngoại khóa', style: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50', bar: 'bg-emerald-500' },
+            'personal': { label: 'Cá nhân', style: 'bg-purple-50 text-purple-600 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800/50', bar: 'bg-purple-500' },
+            'work': { label: 'Công việc', style: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800/50', bar: 'bg-emerald-500' },
+            'other': { label: 'Khác', style: 'bg-gray-50 text-gray-500 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700', bar: 'bg-gray-400' }
+        };
+
+        function renderFilterUI() {
+            const container = document.getElementById('filterContainer');
+            if(!container) return;
+            container.innerHTML = `<span class="text-xs font-bold uppercase tracking-widest text-ghia-muted mr-2 whitespace-nowrap"><i class="fas fa-filter mr-1"></i> Lọc:</span>`;
+            
+            const cats = ['all', 'routine', 'urgent', 'study', 'extracurricular', 'personal', 'other'];
+            
+            cats.forEach(cat => {
+                const info = categoryConfig[cat];
+                const isActive = activeCategoryFilter === cat;
+                const btnClass = isActive 
+                    ? `bg-ghia-rust text-white border border-ghia-rust shadow-md` 
+                    : `bg-surface text-ghia-muted border border-ghia-tan hover:bg-ghia-cream`;
+                
+                container.innerHTML += `<button onclick="setFilter('${cat}')" class="whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${btnClass}">${info.label}</button>`;
+            });
+        }
+
+        // ---------------- THUỘC TÍNH DRAG & DROP DÀNH CHO CÔNG VIỆC ----------------
+
+        function dragStart(e, id) { e.dataTransfer.setData('taskId', id); e.target.style.opacity = '0.4'; }
+        function dragEnd(e) { e.target.style.opacity = '1'; }
+        function allowDrop(e) { e.preventDefault(); }
+        function dragEnter(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+        function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+        function drop(e, targetType) {
+            e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+            const id = e.dataTransfer.getData('taskId');
+            if (id) {
+                let actualType = targetType;
+                if (targetType === 'week') actualType = 'week' + activeWeek;
+                changeType(id, actualType);
+            }
+        }
+
+        function formatDateDisplay(dateStr) {
+            if (!dateStr) return '';
+            const parts = dateStr.split('-');
+            if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`; 
+            return dateStr;
+        }
+
+        function renderTasks() {
+            if(currentMainView === 'analytics') { renderAnalytics(); return; }
+
+            renderFilterUI();
+
+            for(let i=1; i<=5; i++) {
+                const btn = document.getElementById('tab-week'+i);
+                if(i === activeWeek) btn.className = "flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors bg-ghia-rust text-white shadow-sm";
+                else btn.className = "flex-1 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors text-ghia-muted hover:bg-surface border border-ghia-tan/50";
+            }
+
+            const lists = { month: document.getElementById('list-month'), week: document.getElementById('list-week'), day: document.getElementById('list-day'), inbox: document.getElementById('list-inbox') };
+            const stats = { month: { total: 0, done: 0 }, week: { total: 0, done: 0 }, day: { total: 0, done: 0 }, inbox: { total: 0, done: 0 } };
+
+            if(lists.month) lists.month.innerHTML = ''; 
+            if(lists.week) lists.week.innerHTML = ''; 
+            if(lists.day) lists.day.innerHTML = '';
+            if(lists.inbox) lists.inbox.innerHTML = '';
+
+            const todayObj = new Date(); todayObj.setHours(0, 0, 0, 0);
+            const todayStr = `${todayObj.getFullYear()}-${(todayObj.getMonth() + 1).toString().padStart(2, '0')}-${todayObj.getDate().toString().padStart(2, '0')}`;
+            const dtColTitle = document.getElementById('dayColumnTitle');
+            if(dtColTitle) dtColTitle.innerText = (selectedDate === todayStr) ? 'Hôm Nay' : 'Ngày Chọn';
+            const brdMDisplay = document.getElementById('boardMonthDisplay2');
+            if(brdMDisplay) brdMDisplay.innerText = `NGÀY ${formatDateDisplay(selectedDate)}`;
+
+            const sQuery = searchQuery.trim();
+            const filteredTasks = tasks.filter(t => {
+                const matchCat = activeCategoryFilter === 'all' || t.category === activeCategoryFilter;
+                if(!matchCat) return false;
+                
+                if (isLowEnergyMode && !t.isDone) {
+                    if (t.energyLevel === 'high' || t.energyLevel === 'medium') return false;
+                }
+
+                if(!sQuery) return true;
+                return t.title.toLowerCase().includes(sQuery) || (t.notes && t.notes.toLowerCase().includes(sQuery));
+            });
+
+            // --- VIEW INBOX ---
+            if (currentMainView === 'inbox') {
+                const sortedInbox = [...filteredTasks].filter(t => t.type === 'inbox').sort((a, b) => b.dateAdded - a.dateAdded);
+                document.getElementById('count-inbox').textContent = sortedInbox.length;
+
+                if (sortedInbox.length === 0) {
+                    lists.inbox.innerHTML = `<div class="text-center py-12 text-ghia-muted font-serif italic text-base">Hộp đổ rác đang trống. Thêm nhanh ý tưởng từ dưới lên nhé!</div>`;
+                } else {
+                    sortedInbox.forEach(task => {
+                        const isChecked = task.isDone ? 'checked' : '';
+                        const cardStateClass = task.isDone ? 'bg-surface/50 border-ghia-tan/50 opacity-80' : 'bg-surface border-ghia-tan hover:border-ghia-rust/50 shadow-sm';
+                        const textStyle = task.isDone ? 'line-through text-ghia-muted' : 'text-ghia-ink';
+                        
+                        let moveBtns = `
+                            <button onclick="changeType('${task.id}', 'day')" class="text-[10px] text-ghia-rust hover:text-ghia-ink font-bold uppercase tracking-widest transition flex items-center gap-1 pointer-events-auto border border-ghia-tan px-2 py-1 rounded"><i class="fas fa-calendar-day"></i> Gán Nay</button>
+                            <button onclick="changeType('${task.id}', 'week${activeWeek}')" class="text-[10px] text-ghia-muted hover:text-ghia-rust font-bold uppercase tracking-widest transition flex items-center gap-1 pointer-events-auto border border-ghia-tan px-2 py-1 rounded"><i class="fas fa-layer-group"></i> Gán Tuần ${activeWeek}</button>
+                            <button onclick="changeType('${task.id}', 'month')" class="text-[10px] text-ghia-muted hover:text-ghia-rust font-bold uppercase tracking-widest transition flex items-center gap-1 pointer-events-auto border border-ghia-tan px-2 py-1 rounded"><i class="far fa-calendar"></i> Gán Tháng</button>
+                        `;
+
+                        const html = `
+                            <div class="flex flex-col p-4 border rounded-2xl ${cardStateClass} relative group transition-all duration-300">
+                                <div class="flex items-start gap-3 w-full mb-3">
+                                    <div class="mt-0.5 relative flex-shrink-0 cursor-pointer">
+                                        <input type="checkbox" ${isChecked} onchange="toggleTask('${task.id}')" class="ghia-checkbox task-checkbox peer">
+                                    </div>
+                                    <div class="flex-1 transition-all pt-0.5 font-sans">
+                                        <div class="font-medium text-sm md:text-base leading-snug ${textStyle} mb-1">${task.title}</div>
+                                    </div>
+                                    <button onclick="deleteTask('${task.id}')" class="text-ghia-tan hover:text-ghia-rust transition-colors" title="Xóa"><i class="far fa-trash-alt text-sm"></i></button>
+                                </div>
+                                <div class="flex gap-2 justify-end pt-2 border-t border-ghia-tan/30">${moveBtns}</div>
+                            </div>
+                        `;
+                        lists.inbox.insertAdjacentHTML('beforeend', html);
+                    });
+                }
+                return;
+            }
+
+            // --- XỬ LÝ VIEW DEADLINE ---
+            if (currentMainView === 'deadline') {
+                const listDeadline = document.getElementById('list-deadline');
+                listDeadline.innerHTML = '';
+                
+                const sortedForDeadline = [...filteredTasks].filter(t => t.type !== 'inbox').sort((a, b) => {
+                    if (a.isDone !== b.isDone) return a.isDone ? 1 : -1;
+                    if (!a.dueDate && !b.dueDate) {
+                        if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
+                        return 0;
+                    }
+                    if (!a.dueDate) return 1;
+                    if (!b.dueDate) return -1;
+                    
+                    const timeA = new Date(a.dueDate).getTime();
+                    const timeB = new Date(b.dueDate).getTime();
+                    if (timeA === timeB) {
+                        if (a.isPriority !== b.isPriority) return a.isPriority ? -1 : 1;
+                        return 0;
+                    }
+                    return timeA - timeB;
+                });
+
+                document.getElementById('count-deadline').textContent = sortedForDeadline.length;
+
+                if (sortedForDeadline.length === 0) {
+                    let emptyMsg = "Chưa có công việc nào.";
+                    if(activeCategoryFilter !== 'all') emptyMsg = "Không có việc nào thuộc bộ lọc này.";
+                    if(isLowEnergyMode) emptyMsg = "Chế độ cạn kiệt đang bật. Không có việc nhẹ nhàng nào.";
+                    if(sQuery) emptyMsg = "Không tìm thấy công việc phù hợp.";
+                    listDeadline.innerHTML = `<div class="text-center py-12 text-ghia-muted font-serif italic text-base">${emptyMsg}</div>`;
+                } else {
+                    sortedForDeadline.forEach(task => {
+                        const isChecked = task.isDone ? 'checked' : '';
+                        const cardStateClass = task.isDone 
+                            ? 'bg-surface/50 border-ghia-tan/50 opacity-80' 
+                            : (task.isPriority ? 'bg-ghia-rust/5 border-ghia-rust shadow-md' : 'bg-surface border-ghia-tan hover:border-ghia-rust/50 shadow-sm hover:shadow-md');
+                        const textStyle = task.isDone ? 'line-through text-ghia-muted' : 'text-ghia-ink';
+                        
+                        const cat = task.category || 'other';
+                        const catInfo = categoryConfig[cat] || categoryConfig['other'];
+                        const catBadge = `<span class="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${catInfo.style} mt-1 inline-block">${catInfo.label}</span>`;
+                        
+                        let typeLabel = "Tháng";
+                        if (task.type.startsWith('week')) typeLabel = `Tuần ${task.type.replace('week', '')}`;
+                        if (task.type === 'day') typeLabel = "Hôm nay";
+                        const typeBadge = `<span class="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border border-ghia-ink/30 text-ghia-ink mt-1 inline-block bg-ghia-bg/5 ml-1"><i class="fas fa-layer-group mr-1 opacity-70"></i>${typeLabel}</span>`;
+                        
+                        let dateBadge = '';
+                        if (task.dueDate) {
+                            const dueObj = new Date(task.dueDate);
+                            dueObj.setHours(0, 0, 0, 0);
+                            const diffTime = dueObj.getTime() - todayObj.getTime();
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                            if (task.isDone) {
+                                dateBadge = `<div class="text-[9px] text-ghia-muted/70 font-bold uppercase tracking-widest mt-1 ml-2 inline-block"><i class="fas fa-check-double mr-1"></i>Hoàn thành</div>`;
+                            } else {
+                                if (diffDays < 0) dateBadge = `<div class="text-[9px] text-white font-bold uppercase tracking-widest bg-red-600 inline-block px-2 py-0.5 rounded border border-red-700 mt-1 shadow-sm ml-2"><i class="fas fa-exclamation-triangle mr-1"></i>Quá hạn</div>`;
+                                else if (diffDays === 0) dateBadge = `<div class="text-[9px] text-orange-700 font-bold uppercase tracking-widest bg-orange-100 dark:bg-orange-900/30 dark:border-orange-800/50 inline-block px-2 py-0.5 rounded border border-orange-300 mt-1 ml-2"><i class="fas fa-clock mr-1"></i>Hôm nay</div>`;
+                                else if (diffDays <= 2) dateBadge = `<div class="text-[9px] text-yellow-700 font-bold uppercase tracking-widest bg-yellow-100 dark:bg-yellow-900/30 dark:border-yellow-800/50 inline-block px-2 py-0.5 rounded border border-yellow-300 mt-1 ml-2"><i class="fas fa-hourglass-half mr-1"></i>Sắp tới (${diffDays} ngày)</div>`;
+                                else dateBadge = `<div class="text-[9px] text-ghia-rust/80 font-bold uppercase tracking-widest mt-1 ml-2 inline-block"><i class="far fa-calendar-alt mr-1"></i>${formatDateDisplay(task.dueDate)}</div>`;
+                            }
+                        } else {
+                            dateBadge = `<div class="text-[9px] text-ghia-muted/50 font-bold uppercase tracking-widest mt-1 ml-2 inline-block"><i class="far fa-calendar-times mr-1"></i>Không có hạn</div>`;
+                        }
+                        
+                        let noteIndicator = task.notes ? `<span class="text-[10px] text-ghia-muted ml-2" title="Có ghi chú"><i class="fas fa-sticky-note"></i></span>` : '';
+                        let subtaskIndicator = '';
+                        if (task.subtasks && task.subtasks.length > 0) {
+                            const doneSub = task.subtasks.filter(st => st.isDone).length;
+                            subtaskIndicator = `<span class="text-[10px] text-ghia-muted ml-2 font-bold"><i class="fas fa-tasks mr-1"></i>${doneSub}/${task.subtasks.length}</span>`;
+                        }
+                        let recurIndicator = task.recurring && task.recurring !== 'none' ? `<span class="text-[10px] text-ghia-muted ml-2" title="Lặp lại"><i class="fas fa-redo"></i></span>` : '';
+                        
+                        let energyIndicator = '';
+                        if(task.energyLevel === 'high') energyIndicator = `<span class="text-[10px] text-ghia-rust ml-2" title="Năng lượng cao">⚡</span>`;
+                        else if(task.energyLevel === 'medium') energyIndicator = `<span class="text-[10px] text-ghia-ink ml-2" title="Năng lượng vừa">🔋</span>`;
+                        else if(task.energyLevel === 'low') energyIndicator = `<span class="text-[10px] text-gray-500 ml-2" title="Năng lượng thấp">🪫</span>`;
+
+                        const html = `
+                            <div class="flex flex-col md:flex-row p-4 border rounded-2xl ${cardStateClass} relative group transition-all duration-300 items-start md:items-center justify-between gap-4">
+                                <div class="flex items-start gap-3 flex-1 w-full">
+                                    <div class="mt-0.5 relative flex-shrink-0 cursor-pointer">
+                                        <input type="checkbox" ${isChecked} onchange="toggleTask('${task.id}')" class="ghia-checkbox task-checkbox peer">
+                                    </div>
+                                    <div class="flex-1 transition-all pt-0.5 font-sans">
+                                        <div class="font-medium text-sm md:text-base leading-snug ${textStyle} mb-1">${task.title}</div>
+                                        <div class="flex items-center flex-wrap">
+                                            ${catBadge}
+                                            ${typeBadge}
+                                            ${dateBadge}
+                                            <div class="flex items-center ml-1 mt-1">
+                                                ${energyIndicator}
+                                                ${noteIndicator}
+                                                ${recurIndicator}
+                                                ${subtaskIndicator}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex flex-row md:flex-col gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity ml-8 md:ml-0 border-t md:border-t-0 border-ghia-tan/30 pt-3 md:pt-0 w-full md:w-auto justify-end mt-2 md:mt-0">
+                                    <button onclick="openTaskModal('${task.id}')" class="text-ghia-tan hover:text-blue-500 transition-colors" title="Sửa chi tiết"><i class="fas fa-pen text-xs"></i></button>
+                                    <button onclick="deleteTask('${task.id}')" class="text-ghia-tan hover:text-ghia-rust transition-colors" title="Xóa"><i class="far fa-trash-alt text-sm"></i></button>
+                                </div>
+                            </div>
+                        `;
+                        listDeadline.insertAdjacentHTML('beforeend', html);
+                    });
+                }
+                return; 
+            }
+
+            // --- XỬ LÝ VIEW BẢNG (BOARD) ---
+            // Xác định xem có "Con Ếch" đang active trong ngày không
+            const hasActiveFrog = filteredTasks.some(t => t.type === 'day' && t.dueDate === selectedDate && t.isFrog && !t.isDone);
+
+            const sortedTasks = [...filteredTasks].filter(t => t.type !== 'inbox').sort((a, b) => {
+                if(a.isFrog === b.isFrog) {
+                    if(a.isPriority === b.isPriority) return 0;
+                    return a.isPriority ? -1 : 1;
+                }
+                return a.isFrog ? -1 : 1;
+            });
+
+            sortedTasks.forEach(task => {
+                let targetList = null; let statKey = null;
+
+                if (task.type === 'month' && (task.monthYear === currentNavMonth || !task.monthYear)) { statKey = 'month'; targetList = lists.month; } 
+                else if (task.type === 'week' + activeWeek && (task.monthYear === currentNavMonth || !task.monthYear)) { statKey = 'week'; targetList = lists.week; } 
+                else if (task.type === 'day' && task.dueDate === selectedDate) { statKey = 'day'; targetList = lists.day; }
+
+                if (!targetList) return; 
+                stats[statKey].total++;
+                if (task.isDone) stats[statKey].done++;
+
+                const isChecked = task.isDone ? 'checked' : '';
+                let cardStateClass = task.isDone 
+                    ? 'bg-surface/50 border-ghia-tan/50 opacity-80' 
+                    : (task.isPriority ? 'bg-ghia-rust/5 border-ghia-rust shadow-md' : 'bg-surface border-ghia-tan hover:border-ghia-rust/50 shadow-sm hover:shadow-md');
+                
+                // Logic Con Ếch
+                if (task.isFrog && !task.isDone) {
+                    cardStateClass = 'bg-green-50 dark:bg-green-900/20 border-green-500 shadow-lg ring-2 ring-green-500 ring-offset-2 ring-offset-ghia-card';
+                } else if (statKey === 'day' && hasActiveFrog && !task.isFrog && !task.isDone) {
+                    cardStateClass += ' opacity-40 blur-[1px] hover:opacity-100 hover:blur-none';
+                }
+
+                const textStyle = task.isDone ? 'line-through text-ghia-muted' : 'text-ghia-ink';
+                
+                const cat = task.category || 'other';
+                const catInfo = categoryConfig[cat] || categoryConfig['other'];
+                const catBadge = `<span class="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${catInfo.style} mt-1 inline-block">${catInfo.label}</span>`;
+                
+                let dateBadge = '';
+                if (task.dueDate) {
+                    const dueObj = new Date(task.dueDate); dueObj.setHours(0, 0, 0, 0);
+                    const diffTime = dueObj.getTime() - todayObj.getTime();
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    if (task.isDone) dateBadge = `<div class="text-[9px] text-ghia-muted/70 font-bold uppercase tracking-widest mt-1 ml-2 inline-block"><i class="fas fa-check-double mr-1"></i>Hoàn thành</div>`;
+                    else {
+                        if (diffDays < 0) dateBadge = `<div class="text-[9px] text-white font-bold uppercase tracking-widest bg-red-600 inline-block px-2 py-0.5 rounded border border-red-700 mt-1 shadow-sm ml-2"><i class="fas fa-exclamation-triangle mr-1"></i>Quá hạn</div>`;
+                        else if (diffDays === 0) dateBadge = `<div class="text-[9px] text-orange-700 font-bold uppercase tracking-widest bg-orange-100 dark:bg-orange-900/30 dark:border-orange-800/50 inline-block px-2 py-0.5 rounded border border-orange-300 mt-1 ml-2"><i class="fas fa-clock mr-1"></i>Hôm nay</div>`;
+                    }
+                }
+                
+                let noteIndicator = task.notes ? `<span class="text-[10px] text-ghia-muted ml-2" title="Có ghi chú"><i class="fas fa-sticky-note"></i></span>` : '';
+                let subtaskIndicator = '';
+                if (task.subtasks && task.subtasks.length > 0) {
+                    const doneSub = task.subtasks.filter(st => st.isDone).length;
+                    subtaskIndicator = `<span class="text-[10px] text-ghia-muted ml-2 font-bold"><i class="fas fa-tasks mr-1"></i>${doneSub}/${task.subtasks.length}</span>`;
+                }
+                let recurIndicator = task.recurring && task.recurring !== 'none' ? `<span class="text-[10px] text-ghia-muted ml-2" title="Lặp lại"><i class="fas fa-redo"></i></span>` : '';
+                
+                let energyIndicator = '';
+                if(task.energyLevel === 'high') energyIndicator = `<span class="text-[10px] text-ghia-rust ml-2" title="Năng lượng cao">⚡</span>`;
+                else if(task.energyLevel === 'medium') energyIndicator = `<span class="text-[10px] text-ghia-ink ml-2" title="Năng lượng vừa">🔋</span>`;
+                else if(task.energyLevel === 'low') energyIndicator = `<span class="text-[10px] text-gray-500 ml-2" title="Năng lượng thấp">🪫</span>`;
+
+                const flagIcon = task.isPriority ? '<i class="fas fa-flag text-ghia-rust"></i>' : '<i class="far fa-flag"></i>';
+                const frogIcon = task.isFrog ? '<i class="fas fa-frog text-green-600 scale-110"></i>' : '<i class="fas fa-frog"></i>';
+                const escapedTitle = task.title.replace(/'/g, "\\'");
+
+                let moveBtns = '';
+                if (task.type === 'month') moveBtns = `<button onclick="changeType('${task.id}', 'week${activeWeek}')" class="text-[10px] text-ghia-muted hover:text-ghia-rust font-bold uppercase tracking-widest transition flex items-center gap-1 pointer-events-auto" title="Chuyển sang Tuần ${activeWeek}">Tuần ${activeWeek} <i class="fas fa-arrow-right"></i></button>`;
+                else if (task.type.startsWith('week')) moveBtns = `<button onclick="changeType('${task.id}', 'month')" class="text-[10px] text-ghia-muted hover:text-ghia-rust font-bold uppercase tracking-widest transition flex items-center pointer-events-auto" title="Trở lại Tháng"><i class="fas fa-arrow-left"></i></button><button onclick="changeType('${task.id}', 'day')" class="text-[10px] text-ghia-rust hover:text-ghia-ink font-bold uppercase tracking-widest transition flex items-center gap-1 pointer-events-auto" title="Chuyển sang Hôm nay">Hôm nay <i class="fas fa-arrow-right"></i></button>`;
+                else if (task.type === 'day') moveBtns = `<button onclick="changeType('${task.id}', 'week${activeWeek}')" class="text-[10px] text-ghia-muted hover:text-ghia-rust font-bold uppercase tracking-widest transition flex items-center gap-1 pointer-events-auto" title="Trở lại Tuần ${activeWeek}"><i class="fas fa-arrow-left"></i> Tuần ${activeWeek}</button>`;
+
+                const html = `
+                    <div draggable="true" ondragstart="dragStart(event, '${task.id}')" ondragend="dragEnd(event)" class="pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col p-4 border rounded-2xl ${cardStateClass} relative group transition-all duration-300">
+                        <div class="flex items-start gap-3">
+                            <div class="mt-0.5 relative flex-shrink-0 cursor-pointer">
+                                <input type="checkbox" ${isChecked} onchange="toggleTask('${task.id}')" class="ghia-checkbox task-checkbox peer">
+                            </div>
+                            <div class="flex-1 transition-all pt-0.5 font-sans">
+                                <div class="font-medium text-sm md:text-base leading-snug ${textStyle} mb-1">${task.title}</div>
+                                <div class="flex items-center flex-wrap">
+                                    ${catBadge}
+                                    ${dateBadge}
+                                    <div class="flex items-center ml-1 mt-1">
+                                        ${energyIndicator}
+                                        ${noteIndicator}
+                                        ${recurIndicator}
+                                        ${subtaskIndicator}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity items-center">
+                                <button onclick="toggleFrog('${task.id}')" class="text-ghia-tan hover:text-green-600 transition-colors" title="Nuốt con ếch (Làm ngay)">${frogIcon}</button>
+                                <button onclick="startFiveMinTimer('${task.id}', '${escapedTitle}')" class="text-ghia-tan hover:text-yellow-500 transition-colors" title="Quy tắc 5 phút"><i class="fas fa-bolt text-sm"></i></button>
+                                <button onclick="togglePriority('${task.id}')" class="text-ghia-tan hover:text-ghia-rust transition-colors" title="Đánh dấu ưu tiên">${flagIcon}</button>
+                                <button onclick="openTaskModal('${task.id}')" class="text-ghia-tan hover:text-blue-500 transition-colors" title="Sửa chi tiết"><i class="fas fa-pen text-xs"></i></button>
+                                <button onclick="deleteTask('${task.id}')" class="text-ghia-tan hover:text-ghia-rust transition-colors" title="Xóa"><i class="far fa-trash-alt text-sm"></i></button>
+                            </div>
+                        </div>
+                        ${!task.isDone ? `<div class="mt-3 flex gap-4 justify-end opacity-0 group-hover:opacity-100 transition-opacity pt-2 border-t border-ghia-tan/30">${moveBtns}</div>` : ''}
+                    </div>
+                `;
+                targetList.insertAdjacentHTML('beforeend', html);
+            });
+
+            ['month', 'week', 'day'].forEach(key => {
+                if(!stats[key] || !document.getElementById(`count-${key}`)) return;
+                const total = stats[key].total; const done = stats[key].done;
+                const percentage = total === 0 ? 0 : Math.round((done / total) * 100);
+                
+                document.getElementById(`count-${key}`).textContent = total;
+                document.getElementById(`progress-${key}`).style.width = `${percentage}%`;
+                
+                const progressTextEl = document.getElementById(`progress-text-${key}`);
+                if(total > 0) {
+                    progressTextEl.textContent = `${done}/${total} (${percentage}%)`;
+                    progressTextEl.classList.remove('text-ghia-muted');
+                    progressTextEl.classList.add(percentage === 100 ? 'text-green-600' : 'text-ghia-ink');
+                } else {
+                    progressTextEl.textContent = '0%';
+                    progressTextEl.className = 'text-ghia-muted';
+                }
+            });
+
+            let emptyMsg = "Kéo thả việc vào đây.";
+            if(activeCategoryFilter !== 'all') emptyMsg = "Không có việc thuộc bộ lọc này.";
+            if(isLowEnergyMode) emptyMsg = "Đang ẩn việc nặng nhọc.";
+            if(sQuery) emptyMsg = "Không tìm thấy kết quả.";
+
+            if (stats.month.total === 0 && lists.month) lists.month.innerHTML = `<div class="text-center py-8 text-ghia-muted font-serif italic text-sm pointer-events-auto">${emptyMsg}</div>`;
+            if (stats.week.total === 0 && lists.week) lists.week.innerHTML = `<div class="text-center py-8 text-ghia-muted font-serif italic text-sm pointer-events-auto">${emptyMsg}</div>`;
+            if (stats.day.total === 0 && lists.day) lists.day.innerHTML = `<div class="text-center py-8 text-ghia-muted font-serif italic text-sm pointer-events-auto">${emptyMsg}</div>`;
+        }
+
+        initCalendar();
+    </script>
+</body>
+</html>
