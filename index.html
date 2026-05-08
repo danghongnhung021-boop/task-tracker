@@ -147,6 +147,11 @@
         </div>
     </div>
 
+    <!-- Nút Nhắc Uống Nước -->
+    <button onclick="toggleWaterReminder()" id="waterBtn" class="absolute top-6 right-[9.5rem] md:top-8 md:right-[11.5rem] w-10 h-10 rounded-full bg-ghia-cream text-ghia-muted flex items-center justify-center shadow-md hover:scale-110 transition-transform z-20" title="Nhắc uống nước (1 tiếng/lần)">
+        <i id="waterIcon" class="fas fa-tint-slash text-sm"></i>
+    </button>
+
     <!-- Nút Bảo Vệ Mắt (20-20-20) -->
     <button onclick="toggleEyeCare()" id="eyeCareBtn" class="absolute top-6 right-[7rem] md:top-8 md:right-[8.5rem] w-10 h-10 rounded-full bg-ghia-cream text-ghia-muted flex items-center justify-center shadow-md hover:scale-110 transition-transform z-20" title="Bật bảo vệ mắt 20-20-20">
         <i id="eyeCareIcon" class="fas fa-eye-slash text-sm"></i>
@@ -485,6 +490,18 @@
         </div>
     </div>
 
+    <!-- OVERLAY: WATER REMINDER -->
+    <div id="waterOverlay" class="fixed inset-0 z-[9999] bg-blue-900/40 backdrop-blur-2xl hidden flex-col items-center justify-center p-6 opacity-0 transition-opacity duration-1000">
+        <div class="text-center max-w-lg bg-surface/90 p-10 rounded-[2rem] shadow-2xl border border-blue-200">
+            <i class="fas fa-tint text-6xl text-blue-500 mb-6 animate-bounce"></i>
+            <h2 class="font-serif italic text-3xl text-ghia-ink mb-3">Đã đến lúc uống nước!</h2>
+            <p class="text-sm text-ghia-muted mb-8 leading-relaxed">Hãy đứng lên, vươn vai và uống một cốc nước đầy để cơ thể luôn tràn đầy năng lượng nhé.</p>
+            <button onclick="hideWaterBreak()" class="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-full font-bold uppercase tracking-widest text-xs transition-colors shadow-lg">
+                Đã uống xong!
+            </button>
+        </div>
+    </div>
+
     <!-- OVERLAY: ZEN MODE -->
     <div id="zenModeOverlay" class="fixed inset-0 z-[100] bg-ghia-bg hidden flex-col items-center justify-center p-6 transition-opacity duration-500 opacity-0">
         <button onclick="toggleZenMode()" class="absolute top-8 right-8 text-white/50 hover:text-white transition-colors">
@@ -652,6 +669,9 @@
             
             // Check Eye Care Pref
             if(localStorage.getItem('ghiaEyeCare') === 'true') toggleEyeCare(true);
+
+            // Check Water Reminder Pref
+            if(localStorage.getItem('ghiaWaterReminder') === 'true') toggleWaterReminder(true);
         });
 
         function toggleTheme() {
@@ -693,6 +713,41 @@
             } catch (e) { console.log(e); }
         }
 
+        // Âm thanh to và chói hơn để nhắc uống nước
+        function playLoudAlarmSound() {
+            try {
+                if (!audioCtx) initAudio();
+                if (!audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const osc2 = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                osc.type = 'square'; 
+                osc2.type = 'sawtooth';
+                
+                osc.connect(gainNode);
+                osc2.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                osc.frequency.setValueAtTime(1046.50, audioCtx.currentTime + 0.2); 
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.4);
+                
+                osc2.frequency.setValueAtTime(440, audioCtx.currentTime);
+                osc2.frequency.setValueAtTime(523.25, audioCtx.currentTime + 0.2);
+                osc2.frequency.setValueAtTime(440, audioCtx.currentTime + 0.4);
+                
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.8, audioCtx.currentTime + 0.1); 
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+                
+                osc.start(audioCtx.currentTime);
+                osc2.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 1.5);
+                osc2.stop(audioCtx.currentTime + 1.5);
+            } catch (e) { console.log(e); }
+        }
+
         function initNotificationUI() {
             const icon = document.getElementById('notifyIcon');
             const btn = document.getElementById('notifyBtn');
@@ -718,7 +773,6 @@
         }
 
         function sendNotification(title, body) {
-            playBingSound();
             if ("Notification" in window && Notification.permission === "granted") {
                 new Notification(title, { body: body, icon: "https://cdn-icons-png.flaticon.com/512/825/825590.png" });
             } else {
@@ -735,12 +789,78 @@
                 return dueObj.getTime() === todayObj.getTime();
             });
             if (dueTodayTasks.length > 0) {
+                playBingSound();
                 sendNotification('⏰ Việc cần hoàn thành hôm nay!', `Bạn có ${dueTodayTasks.length} công việc có hạn chót hôm nay!`);
             }
         }
 
+        // ---------------- WATER REMINDER LOGIC ----------------
+        let waterActive = false;
+        let waterInterval = null;
+
+        function toggleWaterReminder(forceState = null) {
+            waterActive = forceState !== null ? forceState : !waterActive;
+            localStorage.setItem('ghiaWaterReminder', waterActive);
+            
+            const btn = document.getElementById('waterBtn');
+            const icon = document.getElementById('waterIcon');
+            
+            if (waterActive) {
+                icon.className = 'fas fa-tint text-blue-500 text-sm';
+                btn.classList.add('bg-blue-50');
+                startWaterTimer();
+                if(forceState === null) {
+                    playBingSound();
+                    sendNotification("💧 Đã bật Nhắc uống nước", "Cứ 1 tiếng hệ thống sẽ báo chuông to để bạn đi uống nước.");
+                }
+            } else {
+                icon.className = 'fas fa-tint-slash text-sm text-ghia-muted';
+                btn.classList.remove('bg-blue-50');
+                stopWaterTimer();
+            }
+        }
+
+        function startWaterTimer() {
+            stopWaterTimer();
+            waterInterval = setInterval(triggerWaterBreak, 3600000); // 1 tiếng = 3600000 ms
+        }
+
+        function stopWaterTimer() {
+            if(waterInterval) clearInterval(waterInterval);
+            hideWaterBreak();
+        }
+
+        function triggerWaterBreak() {
+            const overlay = document.getElementById('waterOverlay');
+            const wrap = document.getElementById('appWrapper');
+            
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+            setTimeout(() => {
+                overlay.classList.remove('opacity-0');
+                wrap.classList.add('extreme-blur');
+            }, 50);
+
+            playLoudAlarmSound();
+            setTimeout(playLoudAlarmSound, 1500);
+            setTimeout(playLoudAlarmSound, 3000);
+            
+            sendNotification("💧 Đã đến lúc uống nước!", "Đứng lên vận động và uống một cốc nước đầy nhé!");
+        }
+
+        window.hideWaterBreak = function() {
+            const overlay = document.getElementById('waterOverlay');
+            const wrap = document.getElementById('appWrapper');
+            
+            overlay.classList.add('opacity-0');
+            wrap.classList.remove('extreme-blur');
+            setTimeout(() => {
+                overlay.classList.add('hidden');
+                overlay.classList.remove('flex');
+            }, 1000);
+        }
+
         // ---------------- DATA & STATE ----------------
-        // Có thêm `isFrog` và type `inbox`
         let tasks = JSON.parse(localStorage.getItem('ghiaTasks_Tracker')) || [];
 
         let nav = 0; 
@@ -753,7 +873,6 @@
         let analyticsTimeFilter = 'all';
         let hasCheckedDeadlines = false;
         
-        // LOW ENERGY MODE
         let isLowEnergyMode = false;
 
         function toggleLowEnergyMode() {
@@ -884,7 +1003,6 @@
             const task = tasks.find(t => t.id === id);
             if (task) {
                 const wasFrog = task.isFrog;
-                // Xóa frog của mọi task khác
                 tasks.forEach(t => t.isFrog = false);
                 task.isFrog = !wasFrog;
                 saveData();
@@ -938,7 +1056,10 @@
                 icon.className = 'fas fa-eye text-ghia-forest text-sm';
                 btn.classList.add('bg-green-50');
                 startEyeCareTimer();
-                if(forceState === null) sendNotification("Đã bật Bảo vệ mắt", "Cứ 20 phút màn hình sẽ mờ đi để bạn cho mắt nghỉ ngơi.");
+                if(forceState === null) {
+                    playBingSound();
+                    sendNotification("Đã bật Bảo vệ mắt", "Cứ 20 phút màn hình sẽ mờ đi để bạn cho mắt nghỉ ngơi.");
+                }
             } else {
                 icon.className = 'fas fa-eye-slash text-sm text-ghia-muted';
                 btn.classList.remove('bg-green-50');
@@ -1271,10 +1392,12 @@
                             localStorage.setItem('ghiaFocusLog', JSON.stringify(focusLog));
 
                             confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+                            playBingSound();
                             sendNotification('Hết giờ làm việc! 🎉', 'Bạn làm tốt lắm. Hãy đứng lên vươn vai và nghỉ ngơi 15 phút nhé.');
                             switchTimerMode('break');
                             if(currentMainView === 'analytics') renderAnalytics();
                         } else {
+                            playBingSound();
                             sendNotification('Hết giờ giải lao! 🚀', 'Sẵn sàng quay lại công việc chưa? Bấm Play để tiếp tục nhé.');
                             switchTimerMode('work');
                         }
@@ -1641,6 +1764,7 @@
                     const dayTasks = tasks.filter(t => t.type === 'day' && t.dueDate === selectedDate && (activeCategoryFilter === 'all' || t.category === activeCategoryFilter));
                     if (dayTasks.length > 0 && dayTasks.every(t => t.isDone)) {
                         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#D32F2F', '#4A100C', '#A5736F', '#2E7D32', '#FAD566'] });
+                        playBingSound();
                         sendNotification("Xuất sắc! 🎉", "Bạn đã hoàn thành toàn bộ mục tiêu hôm nay.");
                     }
                 }
@@ -1900,6 +2024,8 @@
                         if(task.energyLevel === 'high') energyIndicator = `<span class="text-[10px] text-ghia-rust ml-2" title="Năng lượng cao">⚡</span>`;
                         else if(task.energyLevel === 'medium') energyIndicator = `<span class="text-[10px] text-ghia-ink ml-2" title="Năng lượng vừa">🔋</span>`;
                         else if(task.energyLevel === 'low') energyIndicator = `<span class="text-[10px] text-gray-500 ml-2" title="Năng lượng thấp">🪫</span>`;
+
+                        const flagIcon = task.isPriority ? '<i class="fas fa-flag text-ghia-rust"></i>' : '<i class="far fa-flag"></i>';
 
                         const html = `
                             <div class="flex flex-col md:flex-row p-4 border rounded-2xl ${cardStateClass} relative group transition-all duration-300 items-start md:items-center justify-between gap-4">
